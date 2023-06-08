@@ -1,0 +1,10 @@
+.hg
+.hgignore
+/.vs
+/Debug
+/Release
+*.exe
+*.log
+/old
+/packages
+save.txt
