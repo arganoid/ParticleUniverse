@@ -598,6 +598,7 @@ void Universe::CreateUniverse(int _id)
 			// Mass is defined in earth masses
 			// Distances in AU
 			// Data from http://www.jpl.nasa.gov/solar_system/sun/sun_index.html
+			// This doesn't work very well as Jupiter and inner planets are too close to the sun and collide with it
 
 			m_gravitationalConstant /= 100;
 
