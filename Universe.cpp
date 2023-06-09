@@ -35,6 +35,9 @@ const double DEFAULT_G = 6.672 * 0.00001;	// some preset universes such as spira
 
 const int drawTrailInterval = 1; // 4;
 
+const int spiralNumParticles = 1400;
+const float spiralMassDecrease = 0.95f;
+
 extern ALLEGRO_DISPLAY *g_display;
 extern ALLEGRO_FONT *g_font;
 extern ALLEGRO_KEYBOARD_STATE g_kbState;
@@ -690,7 +693,7 @@ void Universe::CreateUniverse(int _id)
 			//float mass = 1e8f;
 			double r = 10.f;
 			double sinCount = 0.f;
-			for (int i = 0; i < 1800; ++i)
+			for (int i = 0; i < spiralNumParticles; ++i)
 			{
 				VectorType circlePos = VectorType(sin(sinCount), cos(sinCount));
 				VectorType pos = (circlePos * r) + m_cameraPos;
@@ -702,7 +705,7 @@ void Universe::CreateUniverse(int _id)
 				sinCount += 0.4f;
 				r += 20.5f;
 				if (mass > 1.f)
-					mass *= 0.95f;
+					mass *= spiralMassDecrease;
 			}
 			break;
 		}
