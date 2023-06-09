@@ -362,11 +362,11 @@ void Universe::AdvanceGravity()
 	for (auto& set : mergeSets)
 	{
 		auto i = set.cbegin();
-		argDebugf("Merge set: " + ToString(set) + " into %d", *i);
+		//argDebugf("Merge set: " + ToString(set) + " into %d", *i);
 		Particle& p = m_particles[*i];
 		while (++i != set.cend())
 		{
-			argDebugf("merging %d", *i);
+			//argDebugf("merging %d", *i);
 			p.Merge(m_particles[*i]);
 			deleteQueue.push(*i);
 		}
@@ -375,7 +375,7 @@ void Universe::AdvanceGravity()
 	// now delete old particles
 	while (!deleteQueue.empty())
 	{
-		argDebugf("deleting %d", deleteQueue.top());
+		//argDebugf("deleting %d", deleteQueue.top());
 		m_particles.erase(m_particles.begin() + deleteQueue.top());
 		deleteQueue.pop();
 	}
