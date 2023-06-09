@@ -12,7 +12,6 @@
 #include <queue>
 #include <vector>
 #include <iterator>
-#include <functional>
 #include <random>
 #include <future>
 #include <mutex>
