@@ -24,8 +24,8 @@ namespace ARGMath
 
 	float GetRotationTowards(float _from, float _to, float _amount)
 	{
-		_from = fmod(_from, twoPI);
-		_to = fmod(_to, twoPI);
+		_from = (float)fmod(_from, twoPI);
+		_to = (float)fmod(_to, twoPI);
 		float diff = _to - _from;
 		if (fabs(diff) > fabs(_amount))
 		{
@@ -33,7 +33,7 @@ namespace ARGMath
 		}
 		else
 		{
-			float otherDiff = (_to + twoPI) - _from;
+			float otherDiff = (_to + (float)twoPI) - _from;
 			if (diff < otherDiff)
 			{
 				return _from + _amount;
