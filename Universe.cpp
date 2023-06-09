@@ -808,7 +808,7 @@ void Universe::AdvanceMenu()
 			{
 				m_currentMenuPage = MenuPage::CreateUniverse;
 			}
-			else if (al_key_down(&g_kbState, ALLEGRO_KEY_X))
+			else if (al_key_down(&g_kbState, ALLEGRO_KEY_J))
 			{
 				Save();
 			}
@@ -845,7 +845,7 @@ void Universe::RenderMenu()
 	{
 		case MenuPage::Default:
 		{
-			entries = { "C: Create Universe", "X: Save", "L: Load"};
+			entries = { "C: Create Universe", "J: Save", "L: Load"};
 			break;
 		}
 		case MenuPage::CreateUniverse:
