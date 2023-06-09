@@ -103,7 +103,7 @@ private:
 
 	bool m_fastForward;
 
-	int m_gravityAdvancesPerFrame;
+	int m_gravityUpdatesPerFrame;
 
 
 	/**************/
@@ -137,6 +137,8 @@ private:
 	void RenderParticle(Particle const & _particle, bool _isTrail = false);
 
 	void CreateUniverse(int _id);
+
+	void MakeSpiralUniverse(float startMass, int numParticles, float r, float rStep, float step, float massDecrease, float velMultiplier);
 
 	void Save();
 	void Load();

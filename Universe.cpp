@@ -21,7 +21,7 @@
 #include <allegro5/allegro_primitives.h>
 #include <allegro5/allegro_font.h>
 
-auto versionText = "v1.0";
+auto versionText = "v1.1";
 
 // Default async policy is that std::async will decide whether each particle update is run on a new thread or the main thread
 #define ASYNC_POLICY_DEFAULT 1
@@ -93,10 +93,10 @@ Universe::Universe(int _maxTrailParticles):
 	m_trailsEnabled(false),
 	m_createTrailInterval(DEFAULT_TRAIL_INTERVAL),
 	m_createTrailIntervalCounter(0),
-	m_gravityAdvancesPerFrame(1),
+	m_gravityUpdatesPerFrame(1),
 	m_freeze(false)
 {
-	CreateUniverse(7);
+	CreateUniverse(6);
 }
 
 void Universe::AddParticle(VectorType _pos,	VectorType _vel, float _mass,
@@ -130,16 +130,18 @@ void Universe::Advance()
 
 	if (!m_freeze)
 	{
-		// Update velocity of each particle
-		for (int i = 0; i < m_gravityAdvancesPerFrame; ++i)
+		for (int i = 0; i < m_gravityUpdatesPerFrame; ++i)
+		{
+			// Update velocity of each particle
 			AdvanceGravity();
 
-		// Now apply the velocity of each particle to its position
-		for (auto& p : m_particles)
-		{
-			if (!p.m_immovable)
+			// Now apply the velocity of each particle to its position
+			for (auto& p : m_particles)
 			{
-				p.SetPos(p.GetPos() + p.GetVel());
+				if (!p.m_immovable)
+				{
+					p.SetPos(p.GetPos() + p.GetVel());
+				}
 			}
 		}
 	}
@@ -518,7 +520,6 @@ void Universe::RenderParticle(Particle const & _particle, bool _isTrail)
 
 void Universe::CreateUniverse(int _id)
 {
-	m_gravityAdvancesPerFrame = 1;
 	m_gravitationalConstant = DEFAULT_G;
 
 	m_particles.clear();
@@ -530,12 +531,7 @@ void Universe::CreateUniverse(int _id)
 
 	switch (_id)
 	{
-		default:
-		{
-			// Do nothing, if we want a blank universe then numparticles has already been set to 0
-			break;
-		}
-		case 2:	// Original
+		case 1:	// Original
 		{
 			AddParticle(VectorType(0, 0), VectorType(0.4, 0), 500000);
 			AddParticle(VectorType(320, 240), VectorType(0, 0.5), 1000000);
@@ -547,7 +543,7 @@ void Universe::CreateUniverse(int _id)
 			m_createTrailInterval = 5;
 			break;
 		}
-		case 3:	// Rectangular
+		case 2:	// Rectangular
 		{
 			float size = 1e3f;
 			int const increment = 80;
@@ -583,7 +579,7 @@ void Universe::CreateUniverse(int _id)
 
 			break;
 		}
-		case 4:	// Circle
+		case 3:	// Circle
 		{
 			float size = 1e2f;
 			double const pi = 3.1415926535897932384626433832795;
@@ -610,7 +606,7 @@ void Universe::CreateUniverse(int _id)
 
 			break;
 		}
-		case 5: // Grid
+		case 4: // Grid
 		{
 			for (int x = 0; x <= 800; x += 80)
 				for (int y = 0; y <= 600; y += 60)
@@ -620,16 +616,17 @@ void Universe::CreateUniverse(int _id)
 
 			break;
 		}
-		case 6: // Solar system
+		case 5: // Solar system
 		{
 			// Mass is defined in earth masses
 			// Distances in AU
 			// Data from http://www.jpl.nasa.gov/solar_system/sun/sun_index.html
 			// This doesn't work very well as Jupiter and inner planets are too close to the sun and collide with it
 
-			m_gravitationalConstant /= 100;
+			//m_gravitationalConstant /= 100;
+			//m_gravitationalConstant *= 1e6;
 
-			m_gravityAdvancesPerFrame = 100;
+			//m_gravityAdvancesPerFrame = 100;
 
 			float sunX = 400.f;
 			float sunY = 300.f;
@@ -648,7 +645,7 @@ void Universe::CreateUniverse(int _id)
 			{
 				_distAU *= distMult;
 				_earthMasses *= massMult;
-				float speed = sqrtf((m_gravitationalConstant * sunMass) / _distAU) * distMult;
+				float speed = sqrtf((m_gravitationalConstant * sunMass) / _distAU) * 1.f;
 				AddParticle(VectorType(sunX + _distAU, sunY), VectorType(0.f, speed), _earthMasses, _col, _trails, _immovable);
 				return p;
 			};
@@ -705,39 +702,24 @@ void Universe::CreateUniverse(int _id)
 
 			break;
 		}
+		case 6:
 		case 7:
+		case 8:
 		{
 			// spiral
-
 			m_gravitationalConstant /= 10000;
-
 			m_viewportWidth = m_defaultViewportWidth * 10.f;
 
-			std::mt19937 mersenneEngine;
-			std::uniform_real_distribution<double> distribution1(0, ARGMath::PI * 2);
-			std::uniform_real_distribution<double> distribution2(0.1, 1.0);
+			if (_id == 6)
+				MakeSpiralUniverse(1e12f, spiralNumParticles, 10.f, 20.5f, 0.4f, spiralMassDecrease, 5.f);
+			else if (_id == 7)
+				MakeSpiralUniverse(1e9f, spiralNumParticles, 5.f, 8.f, 0.25f, 0.999f, 0.6f);
+			else if (_id == 8)
+				MakeSpiralUniverse(1e9f, spiralNumParticles, 5.f, 14.f, 1.25f, 0.999f, 1.5f);
 
-			float mass = 1e12f;
-			//float mass = 1e8f;
-			double r = 10.f;
-			double sinCount = 0.f;
-			for (int i = 0; i < spiralNumParticles; ++i)
-			{
-				VectorType circlePos = VectorType(sin(sinCount), cos(sinCount));
-				VectorType pos = (circlePos * r) + m_cameraPos;
-				//VectorType vel = VectorType(cos(sinCount), sin(sinCount));
-				//VectorType vel = VectorType(sin(sinCount + ARGMath::PI), cos(sinCount + ARGMath::PI));
-				VectorType vel = circlePos.Rotated(ARGMath::PI * 0.75f) * 5.f;
-				//VectorType vel = circlePos.Rotated(distribution1(mersenneEngine)) * distribution2(mersenneEngine);
-				AddParticle(pos, vel, mass);
-				sinCount += 0.4f;
-				r += 20.5f;
-				if (mass > 1.f)
-					mass *= spiralMassDecrease;
-			}
 			break;
 		}
-		case 8:
+		case 9:
 		{
 			// two suns
 			AddParticle(VectorType(300, 300), VectorType(0, -0.2), 100000);
@@ -748,6 +730,31 @@ void Universe::CreateUniverse(int _id)
 #if 0
 	m_cameraFollow = m_particles.end();
 #endif
+}
+
+void Universe::MakeSpiralUniverse(float startMass, int numParticles, float r, float rStep, float step, float massDecrease, float velMultiplier)
+{
+	//std::mt19937 mersenneEngine;
+	//std::uniform_real_distribution<double> distribution1(0, ARGMath::PI * 2);
+	//std::uniform_real_distribution<double> distribution2(0.1, 1.0);
+
+	float mass = startMass;
+	//float mass = 1e8f;
+	double sinCount = 0.f;
+	for (int i = 0; i < numParticles; ++i)
+	{
+		VectorType circlePos = VectorType(sin(sinCount), cos(sinCount));
+		VectorType pos = (circlePos * r) + m_cameraPos;
+		//VectorType vel = VectorType(cos(sinCount), sin(sinCount));
+		//VectorType vel = VectorType(sin(sinCount + ARGMath::PI), cos(sinCount + ARGMath::PI));
+		VectorType vel = circlePos.Rotated(ARGMath::PI * 0.75f) * velMultiplier;
+		//VectorType vel = circlePos.Rotated(distribution1(mersenneEngine)) * distribution2(mersenneEngine);
+		AddParticle(pos, vel, mass);
+		sinCount += step;
+		r += rStep;
+		if (mass > 1.f)
+			mass *= massDecrease;
+	}
 }
 
 void Universe::Save()
@@ -817,7 +824,7 @@ void Universe::AdvanceMenu()
 			{
 				m_currentMenuPage = MenuPage::Default;
 			}
-			for (int key = 1; key <= 8; ++key)
+			for (int key = 1; key <= 9; ++key)
 			{
 				if (al_key_down(&g_kbState, ALLEGRO_KEY_0 + key))
 				{
@@ -843,7 +850,16 @@ void Universe::RenderMenu()
 		}
 		case MenuPage::CreateUniverse:
 		{
-			entries = { "0: Previous menu", "1: Blank", "2: Original", "3: Rectangle", "4: Circle", "5: Grid", "6: Solar system", "7: Spiral", "8: Two suns"};
+			entries = { "0: Previous menu",
+						"1: Original",
+						"2: Rectangle",
+						"3: Circle",
+						"4: Grid",
+						"5: Solar system",
+						"6: Spiral 1",
+						"7: Spiral 2",
+						"8: Spiral 3",
+						"9: Two suns"};
 			break;
 		}
 	}
