@@ -16,6 +16,7 @@
 #include <future>
 #include <mutex>
 #include <fstream>
+#include <iomanip>
 
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
@@ -402,8 +403,33 @@ void Universe::Render()
 
 	// Display text stuff
 
-	// top right - version number
+	// top right - version number and nearest particle details
 	al_draw_text(g_font, g_colWhite, al_get_display_width(g_display), 0, ALLEGRO_ALIGN_RIGHT, versionText);
+
+	{
+		ALLEGRO_MOUSE_STATE mouseState;
+		al_get_mouse_state(&mouseState);
+		VectorType mouseScreenPos = VectorType(mouseState.x, mouseState.y);
+		VectorType mouseWorldPos = ScreenToWorld(mouseScreenPos);
+		auto nearest = FindNearest(mouseWorldPos);
+		if (nearest != m_particles.end())
+		{
+			// Only delete if it's within a certain distance from the mouse in screen space
+			auto particleScreenPos = WorldToScreen(nearest->GetPos());
+			float dist = (mouseScreenPos - particleScreenPos).Mag();
+			if (dist < rightClickDeleteMaxPixelDistance)
+			{
+				al_draw_text(g_font, g_colWhite, al_get_display_width(g_display), 30, ALLEGRO_ALIGN_RIGHT, "Particle:");
+				ostringstream ss;
+				ss << "Mass " << nearest->GetMass();
+				al_draw_text(g_font, g_colWhite, al_get_display_width(g_display), 55, ALLEGRO_ALIGN_RIGHT, ss.str().c_str());
+				ss.str("");
+				ss.clear();
+				ss << "Velocity " << nearest->GetVel().x << ", " << nearest->GetVel().y;
+				al_draw_text(g_font, g_colWhite, al_get_display_width(g_display), 80, ALLEGRO_ALIGN_RIGHT, ss.str().c_str());
+			}
+		}
+	}
 
 	// top left
 	std::vector<string> entries = { stringFormat("Particles: %d", m_particles.size()),
