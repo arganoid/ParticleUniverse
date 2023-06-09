@@ -40,6 +40,8 @@ const int drawTrailInterval = 1; // 4;
 const int spiralNumParticles = 1400;
 const float spiralMassDecrease = 0.95f;
 
+const float rightClickDeleteMaxPixelDistance = 60.f;
+
 extern ALLEGRO_DISPLAY *g_display;
 extern ALLEGRO_FONT *g_font;
 extern ALLEGRO_KEYBOARD_STATE g_kbState;
@@ -172,10 +174,17 @@ void Universe::Advance()
 
 		if (al_mouse_button_down(&mouseState, 2) && !m_particles.empty())
 		{
-			VectorType pos = ScreenToWorld(VectorType(mouseState.x, mouseState.y));
-			auto nearest = FindNearest(pos);
+			VectorType mouseScreenPos = VectorType(mouseState.x, mouseState.y);
+			VectorType mouseWorldPos = ScreenToWorld(mouseScreenPos);
+			auto nearest = FindNearest(mouseWorldPos);
 			if (nearest != m_particles.end())
-				m_particles.erase(nearest);
+			{
+				// Only delete if it's within a certain distance from the mouse in screen space
+				auto particleScreenPos = WorldToScreen(nearest->GetPos());
+				float dist = (mouseScreenPos - particleScreenPos).Mag();
+				if (dist < rightClickDeleteMaxPixelDistance)
+					m_particles.erase(nearest);
+			}
 		}
 
 		lastMouseState = mouseState;
