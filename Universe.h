@@ -83,6 +83,7 @@ private:
 	size_t m_maxTrails;
 	int m_createTrailInterval;	// 1 = add to trails every frame, etc
 	int m_createTrailIntervalCounter;
+	bool m_trailsEnabled;
 
 	double m_gravitationalConstant;
 

@@ -50,7 +50,7 @@ extern int g_fontSize;
 
 using namespace std;
 
-#define TRAILS_ON 0
+#define TRAILS_ON 1
 
 
 template<typename T>
@@ -90,6 +90,7 @@ Universe::Universe(int _maxTrailParticles):
 	m_maxTrails(0),
 	m_trails(0),
 #endif
+	m_trailsEnabled(false),
 	m_createTrailInterval(DEFAULT_TRAIL_INTERVAL),
 	m_createTrailIntervalCounter(0),
 	m_gravityAdvancesPerFrame(1),
@@ -224,6 +225,9 @@ void Universe::Advance()
 
 	if (al_key_down(&g_kbState, ALLEGRO_KEY_F5)) { m_freeze = true; }
 	if (al_key_down(&g_kbState, ALLEGRO_KEY_F6)) { m_freeze = false; }
+
+	if (al_key_down(&g_kbState, ALLEGRO_KEY_F7)) { m_trailsEnabled = true; }
+	if (al_key_down(&g_kbState, ALLEGRO_KEY_F8)) { m_trailsEnabled = false; }
 
 	m_fastForward = al_key_down(&g_kbState, ALLEGRO_KEY_Z);
 
@@ -379,12 +383,15 @@ void Universe::Render()
 {
 #if TRAILS_ON
 	// Render trails
-	int iTrail = 0;
-	for( auto const& particle : m_trails )
+	if (m_trailsEnabled)
 	{
-		if (iTrail++ % drawTrailInterval == 0)
-			RenderParticle(particle, true);
-	}
+		int iTrail = 0;
+		for( auto const& particle : m_trails )
+		{
+			if (iTrail++ % drawTrailInterval == 0)
+				RenderParticle(particle, true);
+		}
+}
 #endif 
 
 	// Render each particle
@@ -410,7 +417,13 @@ void Universe::Render()
 	}
 
 	// bottom right
-	entries = { "Left mouse: Add particles", "Right mouse: Remove particles", "+/-: Zoom", "Cursor keys: Move", "Z: Fast forward", "F5/F6: Freeze", "ESC: Quit" };
+	entries = { "Left mouse: Add particles",
+				"Right mouse: Remove particles",
+				"+/-: Zoom", "Cursor keys: Move",
+				"Z: Fast forward",
+				"F5/F6: Freeze",
+				"F7/F8: Enable/disable trails",
+				"ESC: Quit" };
 	y = al_get_display_height(g_display) - g_fontSize * entries.size();
 
 	for (auto const& str : entries)
