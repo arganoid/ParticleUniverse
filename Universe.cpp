@@ -21,6 +21,8 @@
 #include <allegro5/allegro_primitives.h>
 #include <allegro5/allegro_font.h>
 
+auto versionText = "v1.0";
+
 // Default async policy is that std::async will decide whether each particle update is run on a new thread or the main thread
 #define ASYNC_POLICY_DEFAULT 1
 
@@ -381,6 +383,9 @@ void Universe::Render()
 		RenderParticle(p);
 
 	// Display text stuff
+
+	// top right - version number
+	al_draw_text(g_font, g_colWhite, al_get_display_width(g_display), 0, ALLEGRO_ALIGN_RIGHT, versionText);
 
 	// top left
 	std::vector<string> entries = { stringFormat("Particles: %d", m_particles.size()),
