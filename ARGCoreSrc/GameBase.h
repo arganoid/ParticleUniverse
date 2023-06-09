@@ -6,6 +6,8 @@
 #include <list>
 #include <cmath>
 
+struct ALLEGRO_EVENT_QUEUE;
+
 class GameBase
 {
 public:
@@ -23,4 +25,5 @@ private:
 
 	bool m_showFPS = false;
 	int m_advanceLimit = 0;
+	ALLEGRO_EVENT_QUEUE* m_eventQueue = nullptr;
 };

@@ -117,6 +117,7 @@ GameBase::GameBase(bool _requireMouse, int _advanceLimit):
 	area_height = desktop_height - 300;
 #endif
 
+	// Create display
 	g_display = al_create_display(area_width, area_height);
 	if (!g_display)
 	{
@@ -126,6 +127,7 @@ GameBase::GameBase(bool _requireMouse, int _advanceLimit):
 		exit(1);
 	}
 
+	// Load font
 	al_init_font_addon();
 	al_init_ttf_addon();
 	auto fontName = "LektonCode/LektonCode-Regular.ttf";
@@ -134,19 +136,20 @@ GameBase::GameBase(bool _requireMouse, int _advanceLimit):
 	{
 		sprintf_s(buf, "Could not load '%s'.\n", fontName);
 		fprintf_s(stderr, buf);
-		al_show_native_message_box(NULL, NULL, "Error", buf, NULL, ALLEGRO_MESSAGEBOX_ERROR);
+		al_show_native_message_box(g_display, "Error", "Error", buf, NULL, ALLEGRO_MESSAGEBOX_ERROR);
 		exit(1);
 	}
+
+	// Event queue
+	m_eventQueue = al_create_event_queue();
+	if (!m_eventQueue) {
+		al_show_native_message_box(g_display, "Error", "Error", "Failed to create event queue", nullptr, ALLEGRO_MESSAGEBOX_ERROR);
+	}
+	al_register_event_source(m_eventQueue, al_get_display_event_source(g_display));
 
 	g_colWhite = al_map_rgb(255, 255, 255);
 
 	m_showFPS = true; // get_config_int("video", "showFPS", false) == 1;
-
-
-	//clear_keybuf();
-
-	//rest(2000);	// Wait a bit to give the video mode time to take effect
-
 
 	m_timingManager = new TimingManager();
 	//m_timingManager->RunTest();
@@ -165,6 +168,13 @@ void GameBase::MainLoop()
 
 	do
 	{
+		ALLEGRO_EVENT event;
+		if (al_get_next_event(m_eventQueue, &event))
+		{
+			if (event.type == ALLEGRO_EVENT_DISPLAY_CLOSE)
+				break;
+		}
+
 		m_timingManager->BeginProfileSection("fullFrame");
 		m_timingManager->BeginProfileSection("advance");
 
@@ -189,7 +199,6 @@ void GameBase::MainLoop()
 #endif
 
 		// Graphics
-
 		if (true)
 		{
 			m_timingManager->BeginProfileSection("render");
@@ -205,7 +214,6 @@ void GameBase::MainLoop()
 				renderTimes.pop_front();
 			}
 			renderTimes.push_back(renderMs);
-
 
 #if LOG_TIMING
 			sprintf_s(buf, "render: %g ms\t", renderMs);		argDebug(buf);
@@ -273,8 +281,6 @@ void GameBase::MainLoop()
 		}
 		else
 		{
-			//				argDebug("Dropped frame\n");
-			//rest(0);
 			Sleep(0);
 		}
 		al_get_keyboard_state(&g_kbState);
@@ -284,12 +290,10 @@ void GameBase::MainLoop()
 	argDebugf("totalAdvanceTime: %.2f\n", totalAdvanceTime);
 
 	delete m_timingManager;
-	m_timingManager = NULL;
+	m_timingManager = nullptr;
 }
 
 void GameBase::ScreenSwap(void)
 {
-//	vsync();
-//	blit(active_page, visual_page, 0, 0, 0, 0, al_get_display_width(), al_get_display_height());
 	al_flip_display();
 }
