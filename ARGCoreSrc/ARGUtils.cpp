@@ -24,7 +24,7 @@ ofstream g_logFile;
 
 extern unsigned int g_advanceCounter;
 
-static char buf[1024];
+static char buf[1048576];	// todo stop using c strings
 
 //static vector<string> dbgOutput;
 
