@@ -95,7 +95,8 @@ Universe::Universe(int _maxTrailParticles):
 	m_createTrailInterval(DEFAULT_TRAIL_INTERVAL),
 	m_createTrailIntervalCounter(0),
 	m_gravityUpdatesPerFrame(1),
-	m_freeze(false)
+	m_freeze(false),
+	m_userGeneratedParticleMass(1e5f)
 {
 	CreateUniverse(6);
 }
@@ -161,8 +162,7 @@ void Universe::Advance()
 				//VectorType(getrandom(0, m_defaultViewportWidth), getrandom(0, m_defaultViewportWidth*0.75f)),
 				ScreenToWorld(VectorType(mouseState.x, mouseState.y)),
 				VectorType(velx, vely),
-				//2e15f);	// black hole
-				1e5f);
+				m_userGeneratedParticleMass);
 		}
 
 #if 0

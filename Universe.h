@@ -102,6 +102,7 @@ private:
 
 	int m_gravityUpdatesPerFrame;
 
+	double m_userGeneratedParticleMass;
 
 	/**************/
 	/* Menu stuff */
