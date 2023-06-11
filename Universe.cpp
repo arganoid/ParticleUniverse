@@ -270,8 +270,7 @@ void Universe::AdvanceGravity()
 			VectorType objectsVector = other.GetPos() - me.GetPos();
 			float distance = objectsVector.Mag();
 
-			float otherSize = other.GetSize();
-			if (distance < size + otherSize)
+			if (distance < size + other.GetSize())
 			{
 				scoped_lock mergeLock(mergeMutex);
 
@@ -311,6 +310,7 @@ void Universe::AdvanceGravity()
 			float accelMe = force / meMass;
 			float accelOther = force / other.m_mass;
 
+#if 0
 			const float maxAccel = 100.f;
 
 			if (accelMe > maxAccel)
@@ -329,6 +329,7 @@ void Universe::AdvanceGravity()
 					other.m_col = al_map_rgb(255, 0, 0);
 				}
 			}
+#endif
 
 			scoped_lock lock2(mutexes[p]);
 
