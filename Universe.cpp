@@ -101,9 +101,9 @@ Universe::Universe(int _maxTrailParticles):
 }
 
 void Universe::AddParticle(VectorType _pos,	VectorType _vel, float _mass,
-	ALLEGRO_COLOR _col = al_map_rgb(255, 255, 255),	bool _trails = true, bool _immovable = false)
+	ALLEGRO_COLOR _col = al_map_rgb(255, 255, 255),	bool _immovable = false)
 {
-	m_particles.emplace_back( _pos, _vel, _mass, _col, _trails, _immovable );
+	m_particles.emplace_back( _pos, _vel, _mass, _col, _immovable );
 }
 
 void Universe::AddTrailParticle(VectorType _pos, float _mass)
@@ -122,10 +122,7 @@ void Universe::Advance()
 	{
 		for (auto const& p : m_particles)
 		{
-			if (p.m_trails)
-			{
-				AddTrailParticle(p.GetPos(), p.GetMass());
-			}
+			AddTrailParticle(p.GetPos(), p.GetMass());
 		}
 	}
 
@@ -667,20 +664,17 @@ void Universe::CreateUniverse(int _id)
 
 			float const distMult = 10.f;
 
-			auto addPlanet = [&](float _distAU, float _earthMasses, ALLEGRO_COLOR _col = al_map_rgb(255,255,255), bool _trails = true, bool _immovable = false)
+			auto addPlanet = [&](float _distAU, float _earthMasses, ALLEGRO_COLOR _col = al_map_rgb(255,255,255), bool _immovable = false)
 			{
 				_distAU *= distMult;
 				_earthMasses *= massMult;
 				float speed = sqrtf((m_gravitationalConstant * sunMass) / _distAU) * 1.f;
-				AddParticle(VectorType(sunX + _distAU, sunY), VectorType(0.f, speed), _earthMasses, _col, _trails, _immovable);
+				AddParticle(VectorType(sunX + _distAU, sunY), VectorType(0.f, speed), _earthMasses, _col, _immovable);
 				return p;
 			};
 
-#define ADDSUN(_EARTHMASSES) AddParticle(VectorType(sunX,sunY), VectorType(0, 0), _EARTHMASSES, al_map_rgb(255,255,0), false, true);
-//#define ADDPLANET(_AU, _EARTHMASS) p = AddParticle(VectorType(sunX + _AU,sunY), VectorType(velX, velY), _EARTHMASS);
-
 			// Sun
-			ADDSUN(sunMass);
+			AddParticle(VectorType(sunX, sunY), VectorType(0, 0), sunMass, al_map_rgb(255, 255, 0), true);
 
 			// Mercury
 			addPlanet(0.387f, 0.054f);

@@ -23,20 +23,17 @@ struct Particle
 
 	ALLEGRO_COLOR m_col;
 
-	bool m_trails;
 	bool m_immovable;
 
-	Particle() :m_mass(1)
+	Particle() :m_mass(1), m_pos({ 0,0 }), m_immovable(false)
 	{
 	}
 
-	Particle(VectorType _pos, VectorType _vel, float _mass, ALLEGRO_COLOR _col,
-		     bool _trails = true, bool _immovable = false):
+	Particle(VectorType _pos, VectorType _vel, float _mass, ALLEGRO_COLOR _col, bool _immovable = false):
 			m_pos(_pos),
 			m_vel(_vel),
 			m_mass(_mass),
 			m_col(_col),
-			m_trails(_trails),
 			m_immovable(_immovable)
 	{
 	}
@@ -61,7 +58,6 @@ struct Particle
 		m_vel = _param.GetVel();
 		m_mass = _param.GetMass();
 		m_col = _param.m_col;
-		m_trails = _param.m_trails;
 		m_immovable = _param.m_immovable;
 	}
 
@@ -130,7 +126,7 @@ public:
 	int GetFastForward() { return m_fastForward; }
 
 private:
-	void AddParticle(VectorType _pos, VectorType _vel, float _mass, ALLEGRO_COLOR _col, bool _trails, bool _immovable);
+	void AddParticle(VectorType _pos, VectorType _vel, float _mass, ALLEGRO_COLOR _col, bool _immovable);
 	void AddTrailParticle(VectorType _pos, float _mass);
 
 	void AdvanceGravity();
