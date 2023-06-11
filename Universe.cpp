@@ -98,7 +98,7 @@ Universe::Universe(int _maxTrailParticles):
 	m_freeze(false),
 	m_userGeneratedParticleMass(1e5f)
 {
-	CreateUniverse(6);
+	CreateUniverse(5);
 }
 
 void Universe::AddParticle(VectorType _pos,	VectorType _vel, float _mass,
@@ -604,8 +604,10 @@ void Universe::CreateUniverse(int _id)
 
 			break;
 		}
+#if 0
 		case 3:	// Circle
 		{
+			// Disabled as there is a crash bug with merging when running multiple threads
 			float size = 1e2f;
 			double const pi = 3.1415926535897932384626433832795;
 			double const radius = 300;
@@ -631,7 +633,8 @@ void Universe::CreateUniverse(int _id)
 
 			break;
 		}
-		case 4: // Grid
+#endif
+		case 3: // Grid
 		{
 			for (int x = 0; x <= 800; x += 80)
 				for (int y = 0; y <= 600; y += 60)
@@ -641,7 +644,7 @@ void Universe::CreateUniverse(int _id)
 
 			break;
 		}
-		case 5: // Solar system
+		case 4: // Solar system
 		{
 			// Mass is defined in earth masses
 			// Distances in AU
@@ -676,7 +679,7 @@ void Universe::CreateUniverse(int _id)
 			};
 
 			// Sun
-			AddParticle(VectorType(sunX, sunY), VectorType(0, 0), sunMass, al_map_rgb(255, 255, 0), true);
+			AddParticle(VectorType(sunX, sunY), VectorType(0, 0), sunMass, al_map_rgb(255, 255, 0), false);
 
 			// Mercury
 			addPlanet(0.387f, 0.054f);
@@ -724,20 +727,29 @@ void Universe::CreateUniverse(int _id)
 
 			break;
 		}
+		case 5:
 		case 6:
 		case 7:
-		case 8:
 		{
-			// spiral
+			// spirals with lower gravity
 			m_gravitationalConstant /= 10000;
 			m_viewportWidth = m_defaultViewportWidth * 10.f;
 
-			if (_id == 6)
+			if (_id == 5)
 				MakeSpiralUniverse(1e12f, spiralNumParticles, 10.f, 20.5f, 0.4f, spiralMassDecrease, 5.f);
-			else if (_id == 7)
+			else if (_id == 6)
 				MakeSpiralUniverse(1e9f, spiralNumParticles, 5.f, 8.f, 0.25f, 0.999f, 0.6f);
-			else if (_id == 8)
+			else if (_id == 7)
 				MakeSpiralUniverse(1e9f, spiralNumParticles, 5.f, 14.f, 1.25f, 0.999f, 1.5f);
+			
+			break;
+		}
+		case 8:
+		{
+			// spiral with normal gravity
+			m_viewportWidth = m_defaultViewportWidth * 10.f;
+
+			MakeSpiralUniverse(1e6f, 4000, 8.f, 13.f, 1.5f, 0.9999f, 2.5f);
 
 			break;
 		}
@@ -875,12 +887,13 @@ void Universe::RenderMenu()
 			entries = { "0: Previous menu",
 						"1: Original",
 						"2: Rectangle",
-						"3: Circle",
-						"4: Grid",
-						"5: Solar system",
-						"6: Spiral 1",
-						"7: Spiral 2",
-						"8: Spiral 3",
+						//"3: Circle",
+						"3: Grid",
+						"4: Solar system",
+						"5: Spiral 1",
+						"6: Spiral 2",
+						"7: Spiral 3",
+						"8: Spiral 4",
 						"9: Two suns"};
 			break;
 		}
