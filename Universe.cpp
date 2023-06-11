@@ -278,7 +278,7 @@ void Universe::AdvanceGravity()
 			{
 				scoped_lock mergeLock(mergeMutex);
 
-				argDebugf("Merge %d,%d", i, p);
+				//argDebugf("Merge %d,%d", i, p);
 				bool mergedIntoExistingSet = false;
 				for (auto& set : mergeSets)
 				{
@@ -287,7 +287,7 @@ void Universe::AdvanceGravity()
 					if (foundI || foundP)
 					{
 						//assert(mergedIntoExistingSet == false); // , "We should never find an item in more than one set");
-						argDebugf("Found in existing set: i:%d p:%d", foundI, foundP);
+						//argDebugf("Found in existing set: i:%d p:%d", foundI, foundP);
 						if (!mergedIntoExistingSet)
 						{
 							set.insert(i);
