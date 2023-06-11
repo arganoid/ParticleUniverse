@@ -9,7 +9,8 @@
 
 #include <allegro5/allegro.h>
 
-using VectorType = Vector2;
+//using VectorType = Vector2;
+using VectorType = Vector2Dbl;
 
 struct ALLEGRO_VERTEX;
 

@@ -22,7 +22,7 @@
 #include <allegro5/allegro_primitives.h>
 #include <allegro5/allegro_font.h>
 
-auto versionText = "v1.2";
+auto versionText = "v1.3";
 
 // Default async policy is that std::async will decide whether each particle update is run on a new thread or the main thread
 #define ASYNC_POLICY_DEFAULT 1
@@ -814,7 +814,7 @@ void Universe::Load()
 			iss >> numParticles;
 		else
 		{
-			Vector2 pos, vel;
+			VectorType pos, vel;
 			ALLEGRO_COLOR col;
 			decltype(Particle::m_mass) mass;
 			iss >> pos.x >> pos.y >> mass >> vel.x >> vel.y >> col.r >> col.g >> col.b;
