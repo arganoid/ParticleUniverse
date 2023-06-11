@@ -61,9 +61,6 @@
     <ClInclude Include="Universe.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Main.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ARGCoreSrc\ARGMath.h">
       <Filter>Header Files\ARGCoreSrc</Filter>
     </ClInclude>
@@ -74,9 +71,6 @@
       <Filter>Header Files\ARGCoreSrc</Filter>
     </ClInclude>
     <ClInclude Include="ARGCoreSrc\TimingManager.h">
-      <Filter>Header Files\ARGCoreSrc</Filter>
-    </ClInclude>
-    <ClInclude Include="ARGCoreSrc\Transform.h">
       <Filter>Header Files\ARGCoreSrc</Filter>
     </ClInclude>
     <ClInclude Include="ARGCoreSrc\Vector2.h">
