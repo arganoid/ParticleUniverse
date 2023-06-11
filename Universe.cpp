@@ -447,6 +447,7 @@ void Universe::Render()
 				"Right mouse: Remove particles",
 				"+/-: Zoom", "Cursor keys: Move",
 				"Z: Fast forward",
+				"F3/F4: Show/hide particle info",
 				"F5/F6: Freeze",
 				"F7/F8: Enable/disable trails",
 				"ESC: Quit" };
@@ -536,7 +537,7 @@ void Universe::RenderParticle(Particle const & _particle, bool _isTrail)
 
 		if (m_debugParticleInfo && !_isTrail)
 		{
-			//al_draw_textf(g_font, g_colWhite, (int)x, (int)y, 0, "%d: m:%.3f %.3f", _particleNum, _particle.m_mass, _particle.GetVel().Mag());
+			al_draw_textf(g_font, g_colWhite, (int)x, (int)y, 0, "m:%.3f sp:%.3f", _particle.m_mass, _particle.GetVel().Mag());
 			al_draw_line(x, y, x + _particle.GetVel().x, y + _particle.GetVel().y, _particle.m_col, 1.f);
 		}
 	}
