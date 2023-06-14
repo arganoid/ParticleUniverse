@@ -257,11 +257,19 @@ void GameBase::MainLoop()
 
 			if (m_showFPS)
 			{
+#if 0
 				int y = 0;
-								 al_draw_textf(g_font, g_colWhite, 0, y, 0, "Advance: %5.2f ms (avg: %5.2f, max: %5.2f, allAvg: %5.2f)  ", advanceMs, averageA, maxA, (totalAdvanceTime / (double)g_advanceCounter* 1000));
+								 al_draw_textf(g_font, g_colWhite, 0, y, 0, "Update: %5.2f ms (avg: %5.2f, max: %5.2f, allAvg: %5.2f)  ", advanceMs, averageA, maxA, (totalAdvanceTime / (double)g_advanceCounter* 1000));
 				y += g_fontSize; al_draw_textf(g_font, g_colWhite, 0, y, 0, "Render:  %5.2f ms (avg: %5.2f, max: %5.2f)  ", renderMs, averageR, maxRender);
 				y += g_fontSize; al_draw_textf(g_font, g_colWhite, 0, y, 0, "Full frame: (avg: %5.2f, min: %5.2f, max: %5.2f)  ", averageFull, minFull, maxFull);
 				y += g_fontSize; al_draw_textf(g_font, g_colWhite, 0, y, 0, "Frames: %d   Seconds: %.0f  ", g_frameCounter, elapsedTime);
+#else
+				// Simplified timing display
+				int y = 0;
+				al_draw_textf(g_font, g_colWhite, 0, y, 0, "Update: %5.2fms", averageA);
+				y += g_fontSize; al_draw_textf(g_font, g_colWhite, 0, y, 0, "Render: %5.2fms", averageR);
+				y += g_fontSize; al_draw_textf(g_font, g_colWhite, 0, y, 0, "Frames: %d   Seconds: %.0f", g_frameCounter, elapsedTime);
+#endif
 			}
 			ScreenSwap();
 
