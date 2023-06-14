@@ -103,6 +103,7 @@ private:
 	int m_gravityUpdatesPerFrame;
 
 	double m_userGeneratedParticleMass;
+	int m_numSpiralParticles;
 
 	/**************/
 	/* Menu stuff */

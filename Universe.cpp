@@ -39,7 +39,7 @@ const double DEFAULT_G = 6.672 * 0.00001;	// some preset universes such as spira
 
 const int drawTrailInterval = 1; // 4;
 
-const int spiralNumParticles = 1400;
+const int spiralNumParticlesDefault = 1500;
 const float spiralMassDecrease = 0.95f;
 
 const float rightClickDeleteMaxPixelDistance = 60.f;
@@ -97,7 +97,8 @@ Universe::Universe(int _maxTrailParticles):
 	m_createTrailIntervalCounter(0),
 	m_gravityUpdatesPerFrame(1),
 	m_freeze(false),
-	m_userGeneratedParticleMass(1e5f)
+	m_userGeneratedParticleMass(1e5f),
+	m_numSpiralParticles(spiralNumParticlesDefault)
 {
 	CreateUniverse(5);
 }
@@ -226,6 +227,9 @@ void Universe::Advance(float _deltaTime)
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F1)) { m_debugParticleInfo = !m_debugParticleInfo; }
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F2)) { m_freeze = !m_freeze; }
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F3)) { m_trailsEnabled = !m_trailsEnabled; }
+	
+	if (Keyboard::keyPressed(ALLEGRO_KEY_F4)) { m_numSpiralParticles -= 500; }
+	if (Keyboard::keyPressed(ALLEGRO_KEY_F5)) { m_numSpiralParticles += 500; }
 
 	m_fastForward = Keyboard::keyCurrentlyDown(ALLEGRO_KEY_Z);
 
@@ -432,7 +436,8 @@ void Universe::Render()
 								stringFormat("Trail particles: %d", m_trails.size()),
 								stringFormat("Zoom: %.2f (-/+)", 100.f * m_viewportWidth / m_defaultViewportWidth),
 								stringFormat("Camera: %.1f, %.1f", m_cameraPos.x, m_cameraPos.y),
-								stringFormat("G: %e", m_gravitationalConstant)	};
+								stringFormat("G: %e", m_gravitationalConstant),
+								stringFormat("Spiral particles to generate: %d", m_numSpiralParticles)	};
 	float y = 100;
 	for (auto const& str : entries)
 	{
@@ -448,6 +453,7 @@ void Universe::Render()
 				"F1: Show/hide particle info",
 				"F2: Freeze",
 				"F3: Enable/disable trails",
+				"F4/F5: Change spiral particles to generate",
 				"ESC: Quit" };
 	y = al_get_display_height(g_display) - g_fontSize * entries.size();
 
@@ -734,11 +740,11 @@ void Universe::CreateUniverse(int _id)
 			m_viewportWidth = m_defaultViewportWidth * 10.f;
 
 			if (_id == 5)
-				MakeSpiralUniverse(1e12f, spiralNumParticles, 10.f, 20.5f, 0.4f, spiralMassDecrease, 5.f);
+				MakeSpiralUniverse(1e12f, m_numSpiralParticles, 10.f, 20.5f, 0.4f, spiralMassDecrease, 5.f);
 			else if (_id == 6)
-				MakeSpiralUniverse(1e9f, spiralNumParticles, 5.f, 8.f, 0.25f, 0.999f, 0.6f);
+				MakeSpiralUniverse(1e9f, m_numSpiralParticles, 5.f, 8.f, 0.25f, 0.999f, 0.6f);
 			else if (_id == 7)
-				MakeSpiralUniverse(1e9f, spiralNumParticles, 5.f, 14.f, 1.25f, 0.999f, 1.5f);
+				MakeSpiralUniverse(1e9f, m_numSpiralParticles, 5.f, 14.f, 1.25f, 0.999f, 1.5f);
 			
 			break;
 		}
