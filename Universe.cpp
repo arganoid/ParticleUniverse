@@ -80,7 +80,7 @@ Universe::Universe(int _maxTrailParticles):
 	m_scW(al_get_display_width(g_display)),
 	m_scH(al_get_display_height(g_display)),
 	m_worldAspectRatio((float)m_scW / (float)m_scH),
-	m_debug(true),
+	//m_debug(true),
 	m_debugParticleInfo(false),
 	m_fastForward(false),
 	m_currentMenuPage(MenuPage::Default),
@@ -223,17 +223,9 @@ void Universe::Advance(float _deltaTime)
 #endif
 	}
 
-	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F1))	{ m_debug = true; }
-	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F2))	{ m_debug = false; }
-
-	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F3))	{ m_debugParticleInfo = true; }
-	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F4))	{ m_debugParticleInfo = false; }
-
-	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F5)) { m_freeze = true; }
-	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F6)) { m_freeze = false; }
-
-	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F7)) { m_trailsEnabled = true; }
-	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F8)) { m_trailsEnabled = false; }
+	if (Keyboard::keyPressed(ALLEGRO_KEY_F1)) { m_debugParticleInfo = !m_debugParticleInfo; }
+	if (Keyboard::keyPressed(ALLEGRO_KEY_F2)) { m_freeze = !m_freeze; }
+	if (Keyboard::keyPressed(ALLEGRO_KEY_F3)) { m_trailsEnabled = !m_trailsEnabled; }
 
 	m_fastForward = Keyboard::keyCurrentlyDown(ALLEGRO_KEY_Z);
 
@@ -453,9 +445,9 @@ void Universe::Render()
 				"Right mouse: Remove particles",
 				"+/-: Zoom", "Cursor keys: Move",
 				"Z: Fast forward",
-				"F3/F4: Show/hide particle info",
-				"F5/F6: Freeze",
-				"F7/F8: Enable/disable trails",
+				"F1: Show/hide particle info",
+				"F2: Freeze",
+				"F3: Enable/disable trails",
 				"ESC: Quit" };
 	y = al_get_display_height(g_display) - g_fontSize * entries.size();
 
