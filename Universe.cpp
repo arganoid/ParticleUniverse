@@ -23,7 +23,7 @@
 #include <allegro5/allegro_primitives.h>
 #include <allegro5/allegro_font.h>
 
-auto versionText = "v1.3";
+auto versionText = "v1.4";
 
 // Default async policy is that std::async will decide whether each particle update is run on a new thread or the main thread
 #define ASYNC_POLICY_DEFAULT 1
