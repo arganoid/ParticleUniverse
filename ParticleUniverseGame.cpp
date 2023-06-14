@@ -15,7 +15,7 @@ void ParticleUniverseGame::Advance(float _deltaTime)
 {
 	int times = m_universe->GetFastForward() ? 100 : 1;
 	for(int i = 0; i < times; ++i)
-		m_universe->Advance();
+		m_universe->Advance(_deltaTime);
 }
 
 void ParticleUniverseGame::Render()

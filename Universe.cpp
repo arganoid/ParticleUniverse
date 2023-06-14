@@ -5,6 +5,7 @@
 #include "ARGCoreSrc\TimingManager.h"
 #include "ARGCoreSrc\ARGUtils.h"
 #include "ARGCoreSrc\ARGMath.h"
+#include "ARGCoreSrc\Keyboard.h"
 
 #include <cmath>
 
@@ -116,7 +117,7 @@ void Universe::AddTrailParticle(VectorType _pos, float _mass)
 	m_trails.emplace_back(_pos, VectorType(0,0), _mass, al_map_rgb(128, 128, 128));
 }
 
-void Universe::Advance()
+void Universe::Advance(float _deltaTime)
 {
 	// Create trail particles
 	if (m_maxTrails > 0 && (m_createTrailIntervalCounter++ % m_createTrailInterval == 0))
@@ -193,22 +194,26 @@ void Universe::Advance()
 	
 	al_get_keyboard_state(&g_kbState);
 
-	if (al_key_down(&g_kbState, ALLEGRO_KEY_MINUS) || al_key_down(&g_kbState, ALLEGRO_KEY_PAD_MINUS))
+	// Zoom out
+	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_MINUS) || Keyboard::keyCurrentlyDown(ALLEGRO_KEY_PAD_MINUS))
 	{
-		m_viewportWidth *= 1.05f * (al_key_down(&g_kbState, ALLEGRO_KEY_LSHIFT) ? 1.5f : 1.f);	// Zoom out
+		float change = m_viewportWidth * 0.05f * (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_LSHIFT) ? 1.5f : 1.f);
+		m_viewportWidth += change;
 	}
 
-	if ((al_key_down(&g_kbState, ALLEGRO_KEY_EQUALS) || al_key_down(&g_kbState, ALLEGRO_KEY_PAD_PLUS)) && m_viewportWidth > 1.0f)
+	// Zoom in
+	if ((Keyboard::keyCurrentlyDown(ALLEGRO_KEY_EQUALS) || Keyboard::keyCurrentlyDown(ALLEGRO_KEY_PAD_PLUS)) && m_viewportWidth > 1.0f)
 	{
-		m_viewportWidth *= 0.95f * (al_key_down(&g_kbState, ALLEGRO_KEY_LSHIFT) ? 0.5f : 1.f);	// Zoom in
+		float change = m_viewportWidth * 0.05f * (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_LSHIFT) ? 1.5f : 1.f);
+		m_viewportWidth -= change;
 	}
 
 	// Camera
 	{
-		if (al_key_down(&g_kbState, ALLEGRO_KEY_UP)) { m_cameraPos.y -= m_viewportWidth * 0.01f; }
-		if (al_key_down(&g_kbState, ALLEGRO_KEY_DOWN)) { m_cameraPos.y += m_viewportWidth * 0.01f; }
-		if (al_key_down(&g_kbState, ALLEGRO_KEY_LEFT)) { m_cameraPos.x -= m_viewportWidth * 0.01f; }
-		if (al_key_down(&g_kbState, ALLEGRO_KEY_RIGHT)) { m_cameraPos.x += m_viewportWidth * 0.01f; }
+		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_UP)) { m_cameraPos.y -= m_viewportWidth * 0.01f; }
+		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_DOWN)) { m_cameraPos.y += m_viewportWidth * 0.01f; }
+		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_LEFT)) { m_cameraPos.x -= m_viewportWidth * 0.01f; }
+		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_RIGHT)) { m_cameraPos.x += m_viewportWidth * 0.01f; }
 #if 0
 		if (m_cameraFollow != m_particles.end())
 		{
@@ -217,19 +222,19 @@ void Universe::Advance()
 #endif
 	}
 
-	if (al_key_down(&g_kbState, ALLEGRO_KEY_F1))	{ m_debug = true; }
-	if (al_key_down(&g_kbState, ALLEGRO_KEY_F2))	{ m_debug = false; }
+	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F1))	{ m_debug = true; }
+	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F2))	{ m_debug = false; }
 
-	if (al_key_down(&g_kbState, ALLEGRO_KEY_F3))	{ m_debugParticleInfo = true; }
-	if (al_key_down(&g_kbState, ALLEGRO_KEY_F4))	{ m_debugParticleInfo = false; }
+	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F3))	{ m_debugParticleInfo = true; }
+	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F4))	{ m_debugParticleInfo = false; }
 
-	if (al_key_down(&g_kbState, ALLEGRO_KEY_F5)) { m_freeze = true; }
-	if (al_key_down(&g_kbState, ALLEGRO_KEY_F6)) { m_freeze = false; }
+	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F5)) { m_freeze = true; }
+	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F6)) { m_freeze = false; }
 
-	if (al_key_down(&g_kbState, ALLEGRO_KEY_F7)) { m_trailsEnabled = true; }
-	if (al_key_down(&g_kbState, ALLEGRO_KEY_F8)) { m_trailsEnabled = false; }
+	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F7)) { m_trailsEnabled = true; }
+	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_F8)) { m_trailsEnabled = false; }
 
-	m_fastForward = al_key_down(&g_kbState, ALLEGRO_KEY_Z);
+	m_fastForward = Keyboard::keyCurrentlyDown(ALLEGRO_KEY_Z);
 
 	AdvanceMenu();
 }
@@ -838,15 +843,15 @@ void Universe::AdvanceMenu()
 	{
 		case MenuPage::Default:
 		{
-			if (al_key_down(&g_kbState, ALLEGRO_KEY_C))
+			if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_C))
 			{
 				m_currentMenuPage = MenuPage::CreateUniverse;
 			}
-			else if (al_key_down(&g_kbState, ALLEGRO_KEY_J))
+			else if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_J))
 			{
 				Save();
 			}
-			else if (al_key_down(&g_kbState, ALLEGRO_KEY_L))
+			else if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_L))
 			{
 				Load();
 			}
@@ -854,13 +859,13 @@ void Universe::AdvanceMenu()
 		}
 		case MenuPage::CreateUniverse:
 		{
-			if (al_key_down(&g_kbState, ALLEGRO_KEY_0))			// Previous
+			if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_0))			// Previous
 			{
 				m_currentMenuPage = MenuPage::Default;
 			}
 			for (int key = 1; key <= 9; ++key)
 			{
-				if (al_key_down(&g_kbState, ALLEGRO_KEY_0 + key))
+				if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_0 + key))
 				{
 					CreateUniverse(key);
 					m_currentMenuPage = MenuPage::Default;

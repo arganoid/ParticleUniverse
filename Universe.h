@@ -122,7 +122,7 @@ private:
 
 public:
 	Universe(int _maxParticleTrails);
-	void Advance();
+	void Advance(float _deltaTime);
 	void Render();
 	int GetFastForward() { return m_fastForward; }
 
