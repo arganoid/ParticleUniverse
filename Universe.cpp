@@ -210,10 +210,11 @@ void Universe::Advance(float _deltaTime)
 
 	// Camera
 	{
-		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_UP)) { m_cameraPos.y -= m_viewportWidth * 0.01f; }
-		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_DOWN)) { m_cameraPos.y += m_viewportWidth * 0.01f; }
-		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_LEFT)) { m_cameraPos.x -= m_viewportWidth * 0.01f; }
-		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_RIGHT)) { m_cameraPos.x += m_viewportWidth * 0.01f; }
+		const float cameraSpeed = 0.75f;
+		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_UP)) { m_cameraPos.y -= m_viewportWidth * 0.75f * _deltaTime; }
+		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_DOWN)) { m_cameraPos.y += m_viewportWidth * 0.75f * _deltaTime; }
+		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_LEFT)) { m_cameraPos.x -= m_viewportWidth * 0.75f * _deltaTime; }
+		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_RIGHT)) { m_cameraPos.x += m_viewportWidth * 0.75f * _deltaTime; }
 #if 0
 		if (m_cameraFollow != m_particles.end())
 		{
