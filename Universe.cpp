@@ -240,10 +240,10 @@ void Universe::Advance(float _deltaTime)
 
 using ParticleList = vector<Particle*>;
 
-int const gridRowsCols = 10;
+int const gridRowsCols = 50;
 
 template<typename T>
-void GetGridExtents(T const& particles, double& minX, double& maxX, double& minY, double& maxY, double& gridW, double& gridH)
+void GetGridExtents(T const& particles, double& minX, double& maxX, double& minY, double& maxY, double& gridW, double& gridH, double& stepX, double& stepY)
 {
 	minX = minY = numeric_limits<double>::infinity();
 	maxX = maxY = -numeric_limits<double>::infinity();
@@ -256,6 +256,8 @@ void GetGridExtents(T const& particles, double& minX, double& maxX, double& minY
 	}
 	gridW = maxX - minX;
 	gridH = maxY - minY;
+	stepX = gridW / (float)gridRowsCols;
+	stepY = gridH / (float)gridRowsCols;
 }
 
 void Universe::AdvanceGravity()
@@ -277,8 +279,8 @@ void Universe::AdvanceGravity()
 	int count = m_particles.size();
 
 	// Get grid extents
-	double minX, maxX, minY, maxY, gridW, gridH;
-	GetGridExtents(m_particles, minX, maxX, minY, maxY, gridW, gridH);
+	double minX, maxX, minY, maxY, gridW, gridH, stepX, stepY;
+	GetGridExtents(m_particles, minX, maxX, minY, maxY, gridW, gridH, stepX, stepY);
 
 	auto particleGridPos = [&](Particle const& p)
 	{
@@ -286,10 +288,17 @@ void Universe::AdvanceGravity()
 							   static_cast<int>((p.m_pos.y - minY) / gridH) };
 	};
 
-	vector<vector<ParticleList>> grid;
+	struct GridSquare
+	{
+		ParticleList particles;
+		VectorType centre;
+		float mass = 0;
+	};
+
+	vector<vector<GridSquare>> grid;
 	for (int i = 0; i < gridRowsCols; ++i)
 	{
-		vector<ParticleList> row(gridRowsCols);
+		vector<GridSquare> row(gridRowsCols);
 		grid.push_back(row);
 	}
 
@@ -299,7 +308,10 @@ void Universe::AdvanceGravity()
 		auto [gx, gy] = particleGridPos(p);
 		if (gx < 0 || gy < 0 || gx >= grid[0].size() || gy >= grid.size())
 			continue;
-		grid[gy][gx].push_back(&p);
+		grid[gy][gx].particles.push_back(&p);
+		grid[gy][gx].mass += p.GetMass();
+		grid[gy][gx].centre = { minX + gx * stepX, minY + gy * stepY };
+
 	}
 
 	std::vector<std::mutex> mutexes(count);
@@ -312,30 +324,30 @@ void Universe::AdvanceGravity()
 
 		scoped_lock lock1(mutexes[i]);
 
-		// todo go through each grid square
+		// go through each grid square
 		// if it's our own grid square or within certain distance, go through particles as normal, otherwise
 		// be attracted based on total mass of other grid square
-		// we need to know locations of grid squares so we can determine distance between our square and other squares
 		auto [myGX, myGY] = particleGridPos(me);
 		
 		for (auto& row : grid)
 		{
-			for (auto& otherGridSquareParticles : row)
+			for (auto& otherGridSquare : row)
 			{
-				if (otherGridSquareParticles.empty())
+				if (otherGridSquare.particles.empty())
 					continue;
 
 				// get grid coordinates from the first particle
-				auto [otherGX, otherGY] = particleGridPos(*otherGridSquareParticles.front());
+				auto [otherGX, otherGY] = particleGridPos(*otherGridSquare.particles.front());
 
-				// If other grid square is within this distance, go through particles individually
-				const int maxDist = 8;
+				// If other grid square is within this many grid squares, go through particles individually
+				const int maxDist = 4;
 				int gridDistance = abs(myGX - otherGX) + abs(myGY + otherGY);
 				if (gridDistance <= maxDist)
 				{
-					for (int p = 0; p < otherGridSquareParticles.size(); p++)
+					for (int p = 0; p < otherGridSquare.particles.size(); p++)
 					{
-						Particle& other = *(otherGridSquareParticles[p]);
+						Particle& other = *(otherGridSquare.particles[p]);
+
 						if (&me == &other)
 							continue;
 
@@ -417,6 +429,22 @@ void Universe::AdvanceGravity()
 					}
 
 				}
+				else
+				{
+					// Gravitational attraction from this particle to a whole grid square
+					VectorType vec = grid[otherGY][otherGX].centre - me.GetPos();
+					float distance = vec.Mag();
+
+					// Calculate gravitational attraction
+					float force = (m_gravitationalConstant * meMass * grid[otherGY][otherGX].mass) / (distance * distance);
+
+					// Apply force to velocity of particle (accel = force / mass)
+					vec.Normalise();
+
+					float accelMe = force / meMass;
+					vec.SetLength(accelMe);
+					me.AddToVel(vec);
+				}
 			}
 		}
 
@@ -477,16 +505,16 @@ void Universe::Render()
 #endif 
 
 	// Grid lines
-	double minX, maxX, minY, maxY, gridW, gridH;
-	GetGridExtents(m_particles, minX, maxX, minY, maxY, gridW, gridH);
+	double minX, maxX, minY, maxY, gridW, gridH, stepX, stepY;
+	GetGridExtents(m_particles, minX, maxX, minY, maxY, gridW, gridH, stepX, stepY);
 	int gx = 0, gy = 0;
-	for (double x = minX; gx <= gridRowsCols; ++gx, x += (gridW / (float)gridRowsCols))
+	for (double x = minX; gx <= gridRowsCols; ++gx, x += stepX)
 	{
 		auto pos1 = WorldToScreen({ x, minY });
 		auto pos2 = WorldToScreen({ x, maxY });
 		al_draw_line(pos1.x, pos1.y, pos2.x, pos2.y, g_colWhite, 1.f);
 	}
-	for (double y = minY; gy <= gridRowsCols; ++gy, y += (gridH / (float)gridRowsCols))
+	for (double y = minY; gy <= gridRowsCols; ++gy, y += stepY)
 	{
 		auto pos1 = WorldToScreen({ minX, y });
 		auto pos2 = WorldToScreen({ maxX, y });
