@@ -18,6 +18,7 @@
 #include <mutex>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
@@ -254,6 +255,37 @@ void Universe::AdvanceGravity()
 
 	int count = m_particles.size();
 
+	// Get grid extents
+	double minX, maxX, minY, maxY;
+	minX = minY = numeric_limits<double>::infinity();
+	maxX = maxY = -numeric_limits<double>::infinity();
+	for (auto const& p : m_particles)
+	{
+		minX = min(minX, p.GetPos().x);
+		minY = min(minY, p.GetPos().y);
+		maxX = min(maxX, p.GetPos().x);
+		maxY = min(maxY, p.GetPos().y);
+	}
+
+	double gridW = maxX - minX;
+	double gridH = maxY - minY;
+
+	int const gridRowsCols = 10;
+	vector<vector<Particle const*>> grid;
+	for (int i = 0; i < gridRowsCols; ++i)
+	{
+		vector<Particle const*> row(gridRowsCols, nullptr);
+		grid.push_back(row);
+	}
+
+	// Assign each particle to a grid rectangle
+	for (auto const& p : m_particles)
+	{
+		int gx = (p.m_pos.x - minX) / gridW;
+		int gy = (p.m_pos.y - minY) / gridH;
+		grid[gy][gx] = &p;
+	}
+
 	std::vector<std::mutex> mutexes(count);
 
 	auto execute = [&](int i)
@@ -263,6 +295,10 @@ void Universe::AdvanceGravity()
 		float size = me.GetSize();
 
 		scoped_lock lock1(mutexes[i]);
+
+		// todo go through each grid square
+		// if it's our own grid square or within certain distance, go through particles as normal, otherwise
+		// be attracted based on total mass of other grid square
 
 		for (int p = i + 1; p < count; p++)
 		{
