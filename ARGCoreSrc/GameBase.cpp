@@ -1,6 +1,6 @@
 // todo merge with AL5Test equivalent
 
-#define CIRCULAR_BUFFER 1
+#define CIRCULAR_BUFFER 0
 
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
