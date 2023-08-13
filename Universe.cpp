@@ -19,6 +19,7 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <utility>
 
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
@@ -27,12 +28,12 @@
 auto versionText = "v1.4";
 
 // Default async policy is that std::async will decide whether each particle update is run on a new thread or the main thread
-#define ASYNC_POLICY_DEFAULT 1
+#define ASYNC_POLICY_DEFAULT 0
 
 // asyncPolicy of launch::deferred means threading will not be used
 // asyncPolicy of launch::async means that each particle update will happen on a separate thread
 #if !ASYNC_POLICY_DEFAULT
-auto asyncPolicy = launch::deferred;
+auto asyncPolicy = std::launch::deferred;
 #endif
 
 const int DEFAULT_TRAIL_INTERVAL = 4;
@@ -40,7 +41,7 @@ const double DEFAULT_G = 6.672 * 0.00001;	// some preset universes such as spira
 
 const int drawTrailInterval = 1; // 4;
 
-const int spiralNumParticlesDefault = 1500;
+const int spiralNumParticlesDefault = 10;
 const float spiralMassDecrease = 0.95f;
 
 const float rightClickDeleteMaxPixelDistance = 60.f;
@@ -237,6 +238,26 @@ void Universe::Advance(float _deltaTime)
 	AdvanceMenu();
 }
 
+using ParticleList = vector<Particle*>;
+
+int const gridRowsCols = 10;
+
+template<typename T>
+void GetGridExtents(T const& particles, double& minX, double& maxX, double& minY, double& maxY, double& gridW, double& gridH)
+{
+	minX = minY = numeric_limits<double>::infinity();
+	maxX = maxY = -numeric_limits<double>::infinity();
+	for (auto const& p : particles)
+	{
+		minX = min(minX, p.GetPos().x);
+		minY = min(minY, p.GetPos().y);
+		maxX = max(maxX, p.GetPos().x);
+		maxY = max(maxY, p.GetPos().y);
+	}
+	gridW = maxX - minX;
+	gridH = maxY - minY;
+}
+
 void Universe::AdvanceGravity()
 {
 	// Check every other particle and for each one, adjust my velocity
@@ -256,34 +277,29 @@ void Universe::AdvanceGravity()
 	int count = m_particles.size();
 
 	// Get grid extents
-	double minX, maxX, minY, maxY;
-	minX = minY = numeric_limits<double>::infinity();
-	maxX = maxY = -numeric_limits<double>::infinity();
-	for (auto const& p : m_particles)
+	double minX, maxX, minY, maxY, gridW, gridH;
+	GetGridExtents(m_particles, minX, maxX, minY, maxY, gridW, gridH);
+
+	auto particleGridPos = [&](Particle const& p)
 	{
-		minX = min(minX, p.GetPos().x);
-		minY = min(minY, p.GetPos().y);
-		maxX = min(maxX, p.GetPos().x);
-		maxY = min(maxY, p.GetPos().y);
-	}
+		return pair<int, int>{ static_cast<int>((p.m_pos.x - minX) / gridW),
+							   static_cast<int>((p.m_pos.y - minY) / gridH) };
+	};
 
-	double gridW = maxX - minX;
-	double gridH = maxY - minY;
-
-	int const gridRowsCols = 10;
-	vector<vector<Particle const*>> grid;
+	vector<vector<ParticleList>> grid;
 	for (int i = 0; i < gridRowsCols; ++i)
 	{
-		vector<Particle const*> row(gridRowsCols, nullptr);
+		vector<ParticleList> row(gridRowsCols);
 		grid.push_back(row);
 	}
 
 	// Assign each particle to a grid rectangle
-	for (auto const& p : m_particles)
+	for (auto& p : m_particles)
 	{
-		int gx = (p.m_pos.x - minX) / gridW;
-		int gy = (p.m_pos.y - minY) / gridH;
-		grid[gy][gx] = &p;
+		auto [gx, gy] = particleGridPos(p);
+		if (gx < 0 || gy < 0 || gx >= grid[0].size() || gy >= grid.size())
+			continue;
+		grid[gy][gx].push_back(&p);
 	}
 
 	std::vector<std::mutex> mutexes(count);
@@ -299,84 +315,111 @@ void Universe::AdvanceGravity()
 		// todo go through each grid square
 		// if it's our own grid square or within certain distance, go through particles as normal, otherwise
 		// be attracted based on total mass of other grid square
-
-		for (int p = i + 1; p < count; p++)
+		// we need to know locations of grid squares so we can determine distance between our square and other squares
+		auto [myGX, myGY] = particleGridPos(me);
+		
+		for (auto& row : grid)
 		{
-			Particle& other = m_particles[p];
-
-			// Get vector between objects
-			VectorType objectsVector = other.GetPos() - me.GetPos();
-			float distance = objectsVector.Mag();
-
-			if (distance < size + other.GetSize())
+			for (auto& otherGridSquareParticles : row)
 			{
-				scoped_lock mergeLock(mergeMutex);
+				if (otherGridSquareParticles.empty())
+					continue;
 
-				//argDebugf("Merge %d,%d", i, p);
-				bool mergedIntoExistingSet = false;
-				for (auto& set : mergeSets)
+				// get grid coordinates from the first particle
+				auto [otherGX, otherGY] = particleGridPos(*otherGridSquareParticles.front());
+
+				// If other grid square is within this distance, go through particles individually
+				const int maxDist = 8;
+				int gridDistance = abs(myGX - otherGX) + abs(myGY + otherGY);
+				if (gridDistance <= maxDist)
 				{
-					bool foundI = set.find(i) != set.end();
-					bool foundP = set.find(p) != set.end();
-					if (foundI || foundP)
+					for (int p = 0; p < otherGridSquareParticles.size(); p++)
 					{
-						//assert(mergedIntoExistingSet == false); // , "We should never find an item in more than one set");
-						//argDebugf("Found in existing set: i:%d p:%d", foundI, foundP);
-						if (!mergedIntoExistingSet)
-						{
-							set.insert(i);
-							set.insert(p);
-							mergedIntoExistingSet = true;
-						}
-					}
-				}
+						Particle& other = *(otherGridSquareParticles[p]);
+						if (&me == &other)
+							continue;
 
-				if (!mergedIntoExistingSet)
-					mergeSets.push_back(unordered_set<int>({ i, p }));
+						// Get vector between objects
+						VectorType objectsVector = other.GetPos() - me.GetPos();
+						float distance = objectsVector.Mag();
 
-				continue;
-			}
-
-			// Calculate gravitational attraction
-			float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
-
-			// Apply force to velocity of particle (accel = force / mass)
-			objectsVector.Normalise();
-
-			VectorType objectsVectorOther = objectsVector;
-
-			float accelMe = force / meMass;
-			float accelOther = force / other.m_mass;
-
+						// For now, don't allow collisions between particles in different grid squres
 #if 0
-			const float maxAccel = 100.f;
+						if (gridDistance == 0 && distance < size + other.GetSize())
+						{
+							scoped_lock mergeLock(mergeMutex);
 
-			if (accelMe > maxAccel)
-			{
-				accelMe = maxAccel;
-				if (m_debug)
-				{
-					me.m_col = al_map_rgb(255, 0, 0);
-				}
-			}
-			if (accelOther > maxAccel)
-			{
-				accelOther = maxAccel;
-				if (m_debug)
-				{
-					other.m_col = al_map_rgb(255, 0, 0);
-				}
-			}
+							//argDebugf("Merge %d,%d", i, p);
+							bool mergedIntoExistingSet = false;
+							for (auto& set : mergeSets)
+							{
+								bool foundI = set.find(i) != set.end();
+								bool foundP = set.find(p) != set.end();
+								if (foundI || foundP)
+								{
+									//assert(mergedIntoExistingSet == false); // , "We should never find an item in more than one set");
+									//argDebugf("Found in existing set: i:%d p:%d", foundI, foundP);
+									if (!mergedIntoExistingSet)
+									{
+										set.insert(i);
+										set.insert(p);
+										mergedIntoExistingSet = true;
+									}
+								}
+							}
+
+							if (!mergedIntoExistingSet)
+								mergeSets.push_back(unordered_set<int>({ i, p }));
+
+							continue;
+						}
 #endif
 
-			scoped_lock lock2(mutexes[p]);
+						// Calculate gravitational attraction
+						float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
 
-			objectsVector.SetLength(accelMe);
-			objectsVectorOther.SetLength(accelOther);
+						// Apply force to velocity of particle (accel = force / mass)
+						objectsVector.Normalise();
 
-			me.AddToVel(objectsVector);
-			other.AddToVel(-objectsVectorOther);
+						VectorType objectsVectorOther = objectsVector;
+
+						float accelMe = force / meMass;
+						float accelOther = force / other.m_mass;
+
+#if 0
+						const float maxAccel = 100.f;
+
+						if (accelMe > maxAccel)
+						{
+							accelMe = maxAccel;
+							if (m_debug)
+							{
+								me.m_col = al_map_rgb(255, 0, 0);
+							}
+						}
+						if (accelOther > maxAccel)
+						{
+							accelOther = maxAccel;
+							if (m_debug)
+							{
+								other.m_col = al_map_rgb(255, 0, 0);
+							}
+					}
+#endif
+
+						scoped_lock lock2(mutexes[p]);
+
+						objectsVector.SetLength(accelMe);
+						objectsVectorOther.SetLength(accelOther);
+
+						me.AddToVel(objectsVector);
+						other.AddToVel(-objectsVectorOther);
+					}
+
+				}
+			}
 		}
+
 	};
 
 	vector<std::future<void>> futures;
@@ -432,6 +475,24 @@ void Universe::Render()
 		}
 }
 #endif 
+
+	// Grid lines
+	double minX, maxX, minY, maxY, gridW, gridH;
+	GetGridExtents(m_particles, minX, maxX, minY, maxY, gridW, gridH);
+	int gx = 0, gy = 0;
+	for (double x = minX; gx <= gridRowsCols; ++gx, x += (gridW / (float)gridRowsCols))
+	{
+		auto pos1 = WorldToScreen({ x, minY });
+		auto pos2 = WorldToScreen({ x, maxY });
+		al_draw_line(pos1.x, pos1.y, pos2.x, pos2.y, g_colWhite, 1.f);
+	}
+	for (double y = minY; gy <= gridRowsCols; ++gy, y += (gridH / (float)gridRowsCols))
+	{
+		auto pos1 = WorldToScreen({ minX, y });
+		auto pos2 = WorldToScreen({ maxX, y });
+		al_draw_line(pos1.x, pos1.y, pos2.x, pos2.y, g_colWhite, 1.f);
+	}
+
 
 	// Render each particle
 	for (auto const& p : m_particles)
