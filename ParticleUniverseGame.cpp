@@ -25,3 +25,8 @@ void ParticleUniverseGame::Render()
 	m_universe->Render();
 }
 
+void ParticleUniverseGame::OnClose()
+{
+	m_universe->OnClose();
+}
+

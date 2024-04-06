@@ -45,9 +45,6 @@
     <ClCompile Include="ARGCoreSrc\Vector2.cpp">
       <Filter>Source Files\ARGCoreSrc</Filter>
     </ClCompile>
-    <ClCompile Include="ARGCoreSrc\Vector2Dbl.cpp">
-      <Filter>Source Files\ARGCoreSrc</Filter>
-    </ClCompile>
     <ClCompile Include="ARGCoreSrc\Keyboard.cpp">
       <Filter>Source Files\ARGCoreSrc</Filter>
     </ClCompile>
@@ -77,9 +74,6 @@
       <Filter>Header Files\ARGCoreSrc</Filter>
     </ClInclude>
     <ClInclude Include="ARGCoreSrc\Vector2.h">
-      <Filter>Header Files\ARGCoreSrc</Filter>
-    </ClInclude>
-    <ClInclude Include="ARGCoreSrc\Vector2Dbl.h">
       <Filter>Header Files\ARGCoreSrc</Filter>
     </ClInclude>
     <ClInclude Include="ARGCoreSrc\Keyboard.h">

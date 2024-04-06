@@ -297,6 +297,8 @@ void GameBase::MainLoop()
 
 	argDebugf("totalAdvanceTime: %.2f\n", totalAdvanceTime);
 
+	OnClose();
+
 	delete m_timingManager;
 	m_timingManager = nullptr;
 }

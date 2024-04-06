@@ -2,15 +2,13 @@
 
 #include <deque>
 #include <vector>
-#include <list>
 
 #include "ARGCoreSrc\ARGUtils.h"
-#include "ARGCoreSrc\Vector2Dbl.h"
+#include "ARGCoreSrc\Vector2.h"
 
 #include <allegro5/allegro.h>
 
-//using VectorType = Vector2;
-using VectorType = Vector2Dbl;
+using VectorType = Vector2Base<double>;
 
 struct ALLEGRO_VERTEX;
 
@@ -25,7 +23,11 @@ struct Particle
 
 	bool m_immovable;
 
-	Particle() :m_mass(1), m_pos({ 0,0 }), m_immovable(false)
+	Particle():
+		m_mass(1),
+		m_pos({ 0,0 }),
+		m_immovable(false),
+		m_col(al_map_rgb(255,255,255))
 	{
 	}
 
@@ -37,6 +39,8 @@ struct Particle
 			m_immovable(_immovable)
 	{
 	}
+
+	Particle(const Particle& other) = default;
 
 	Particle(Particle&&) noexcept = default;
 	Particle& operator=(Particle&&) noexcept = default;
@@ -125,6 +129,7 @@ public:
 	Universe(int _maxParticleTrails);
 	void Advance(float _deltaTime);
 	void Render();
+	void OnClose();
 	int GetFastForward() { return m_fastForward; }
 
 private:
@@ -141,7 +146,6 @@ private:
 
 	void Save();
 	void Load();
-
 
 	VectorType WorldToScreen(const VectorType& _world);
 	VectorType ScreenToWorld(const VectorType& _screen);

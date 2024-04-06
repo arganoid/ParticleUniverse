@@ -153,7 +153,6 @@
     <ClCompile Include="ARGCoreSrc\Keyboard.cpp" />
     <ClCompile Include="ARGCoreSrc\TimingManager.cpp" />
     <ClCompile Include="ARGCoreSrc\Vector2.cpp" />
-    <ClCompile Include="ARGCoreSrc\Vector2Dbl.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="ParticleUniverseGame.cpp" />
     <ClCompile Include="Universe.cpp" />
@@ -168,7 +167,6 @@
     <ClInclude Include="ARGCoreSrc\Keyboard.h" />
     <ClInclude Include="ARGCoreSrc\TimingManager.h" />
     <ClInclude Include="ARGCoreSrc\Vector2.h" />
-    <ClInclude Include="ARGCoreSrc\Vector2Dbl.h" />
     <ClInclude Include="ParticleUniverseGame.h" />
     <ClInclude Include="Universe.h" />
   </ItemGroup>
