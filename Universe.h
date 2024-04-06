@@ -2,15 +2,13 @@
 
 #include <deque>
 #include <vector>
-#include <list>
 
 #include "ARGCoreSrc\ARGUtils.h"
-#include "ARGCoreSrc\Vector2Dbl.h"
+#include "ARGCoreSrc\Vector2.h"
 
 #include <allegro5/allegro.h>
 
-//using VectorType = Vector2;
-using VectorType = Vector2Dbl;
+using VectorType = Vector2Base<double>;
 
 struct ALLEGRO_VERTEX;
 
