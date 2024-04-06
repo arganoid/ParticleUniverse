@@ -15,6 +15,7 @@ public:
 protected:
 	void Advance(float _deltaTime);
 	void Render();
+	void OnClose();
 
 private:
 	std::unique_ptr<Universe> m_universe;

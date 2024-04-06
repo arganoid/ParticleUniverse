@@ -17,6 +17,7 @@ public:
 protected:
 	virtual void Advance(float _deltaTime) = 0;
 	virtual void Render() = 0;
+	virtual void OnClose() {}
 
 	TimingManager* m_timingManager;
 

@@ -1,3 +1,9 @@
+// todo
+// option to write as binary
+// combine recording file and save file?
+// options for particle size
+// options for particle colours
+
 #include "Universe.h"
 
 #include "ParticleUniverseGame.h"
@@ -18,12 +24,15 @@
 #include <mutex>
 #include <fstream>
 #include <iomanip>
+#include <filesystem>
 
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
 #include <allegro5/allegro_font.h>
 
-auto versionText = "v1.4";
+using namespace std;
+
+auto versionText = "v1.5";
 
 // Default async policy is that std::async will decide whether each particle update is run on a new thread or the main thread
 #define ASYNC_POLICY_DEFAULT 1
@@ -40,7 +49,41 @@ const double DEFAULT_G = 6.672 * 0.00001;	// some preset universes such as spira
 const int drawTrailInterval = 1; // 4;
 
 const int spiralNumParticlesDefault = 1500;
-const float spiralMassDecrease = 0.95f;
+const float spiralMassDecrease = 0.95f;		// used 0.99 in latest video
+
+const float particleEdgeThickness = 1.5f;
+
+// Recording: set num particles much higher (e.g. 15k like in my latest video), set recording mode
+// to save, and update the filenames below. Probably also enable save on quit, and then enable
+// load on start to resume the recording.
+// While recording a fixed deltatime of 1/60 will be used (see Advance)
+
+enum class RecordingMode
+{
+	None,
+	Save,
+	Load
+};
+
+const bool loadOnStart = false;
+const bool saveOnQuit = false;
+const RecordingMode recordingMode = RecordingMode::None;
+
+// output/input filenames below are ones I used for recording of recent video,
+// obviously change this if you plan to use this yourself
+
+const string recordingOutputFileName = "F://ParticleUniverseRecording 15k part7.txt";
+
+vector<string> recordingInputFileNames =
+	{ "F://ParticleUniverseRecording 15k part1.txt",
+	  "F://ParticleUniverseRecording 15k part2.txt",
+	  "F://ParticleUniverseRecording 15k part3.txt",
+	  "F://ParticleUniverseRecording 15k part4.txt",
+	  "F://ParticleUniverseRecording 15k part5.txt",
+	  "F://ParticleUniverseRecording 15k part6.txt",
+	};
+
+vector<string>::const_iterator currentRecordingInputFileName = cbegin(recordingInputFileNames);
 
 const float rightClickDeleteMaxPixelDistance = 60.f;
 
@@ -50,10 +93,10 @@ extern ALLEGRO_KEYBOARD_STATE g_kbState;
 extern ALLEGRO_COLOR g_colWhite;
 extern int g_fontSize;
 
-using namespace std;
-
 #define TRAILS_ON 1
 
+ifstream inputFile;
+ofstream outputFile;
 
 template<typename T>
 string ToString(unordered_set<T> const& set)
@@ -71,6 +114,31 @@ string ToString(unordered_set<T> const& set)
 	}
 	return str + "}";
 }
+
+std::ostream& operator<<(std::ostream& os, ALLEGRO_COLOR const& col)
+{
+	os << col.r << " " << col.g << " " << col.b;
+	return os;
+}
+
+std::ostream& operator<<(std::ostream& os, Particle const& p)
+{
+	os << p.m_pos.x << " " << p.m_pos.y << " "
+	   << p.m_vel.x << " " << p.m_vel.y << " "
+	   << p.m_mass << " " << p.m_col << " "
+	   << p.m_immovable;
+	return os;
+}
+
+inline std::istream& operator>> (std::istream& is, Particle& p)
+{
+	is >> p.m_pos.x >> p.m_pos.y >> p.m_vel.x >> p.m_vel.y;
+	is >> p.m_mass;
+	is >> p.m_col.r >> p.m_col.g >> p.m_col.b;
+	is >> p.m_immovable;
+	return is;
+}
+
 
 Universe::Universe(int _maxTrailParticles):
 	m_gravitationalConstant(DEFAULT_G),
@@ -101,6 +169,25 @@ Universe::Universe(int _maxTrailParticles):
 	m_numSpiralParticles(spiralNumParticlesDefault)
 {
 	CreateUniverse(5);
+
+	switch (recordingMode)
+	{
+		case RecordingMode::Load:
+		{
+			// now done in Advance
+			break;
+		}
+		case RecordingMode::Save:
+		{
+			outputFile.open(recordingOutputFileName);
+			break;
+		}
+	}
+
+	if (loadOnStart)
+	{
+		Load();
+	}
 }
 
 void Universe::AddParticle(VectorType _pos,	VectorType _vel, float _mass,
@@ -120,6 +207,9 @@ void Universe::AddTrailParticle(VectorType _pos, float _mass)
 
 void Universe::Advance(float _deltaTime)
 {
+	if (recordingMode == RecordingMode::Save)
+		_deltaTime = 1 / 60.f;
+
 	// Create trail particles
 	if (m_maxTrails > 0 && (m_createTrailIntervalCounter++ % m_createTrailInterval == 0))
 	{
@@ -129,7 +219,45 @@ void Universe::Advance(float _deltaTime)
 		}
 	}
 
-	if (!m_freeze)
+	if (recordingMode == RecordingMode::Load)
+	{
+		if (!inputFile.is_open())
+		{
+			inputFile.open(*currentRecordingInputFileName);
+			argDebugf("opened %s\n", currentRecordingInputFileName->c_str());
+		}
+		else if (inputFile.eof())
+		{
+			// open next file in sequence
+			inputFile.close();
+			++currentRecordingInputFileName;
+			try
+			{
+				inputFile.open(*currentRecordingInputFileName);
+				argDebugf("opened %s\n", currentRecordingInputFileName->c_str());
+			}
+			catch (...)
+			{
+			}
+		}
+
+		int pCount;
+		try
+		{
+			inputFile >> pCount;
+			m_particles.resize(pCount);
+			for (int i = 0; i < pCount; ++i)
+			{
+				inputFile >> m_particles[i];
+			}
+		}
+		catch (...)
+		{
+			// eof won't trigger above until we try to read the next item. There's definitely
+			// a better way to deal with this but I don't have time to prioritise that
+		}
+	}
+	else if (!m_freeze)
 	{
 		for (int i = 0; i < m_gravityUpdatesPerFrame; ++i)
 		{
@@ -234,6 +362,16 @@ void Universe::Advance(float _deltaTime)
 	m_fastForward = Keyboard::keyCurrentlyDown(ALLEGRO_KEY_Z);
 
 	AdvanceMenu();
+
+	if (recordingMode == RecordingMode::Save)
+	{
+		outputFile << m_particles.size() << " ";
+		for (auto const& p : m_particles)
+		{
+			outputFile << p << " ";
+		}
+		outputFile << endl;
+	}
 }
 
 void Universe::AdvanceGravity()
@@ -466,6 +604,12 @@ void Universe::Render()
 	RenderMenu();
 }
 
+void Universe::OnClose()
+{
+	if (saveOnQuit)
+		Save();
+}
+
 void Universe::RenderParticle(Particle const & _particle, bool _isTrail)
 {
 	float viewportHeight = m_viewportWidth / m_worldAspectRatio;
@@ -522,14 +666,14 @@ void Universe::RenderParticle(Particle const & _particle, bool _isTrail)
 		{
 			case SizeClass::Large:
 			{
-				al_draw_circle(x, y, 10, _particle.m_col, 1.f);
+				al_draw_circle(x, y, 10, _particle.m_col, particleEdgeThickness);
 				al_draw_line((int)(x - 10), (int)y, (int)(x + 10), y, _particle.m_col, 1.f);
 				al_draw_line(x, (int)(y - 7.5f), x, (int)(y + 7.5f), _particle.m_col, 1.f);
 				break;
 			}
 			case SizeClass::Normal:
 			{
-				al_draw_circle(x, y, size, _particle.m_col, 1.f);
+				al_draw_circle(x, y, size, _particle.m_col, particleEdgeThickness);
 				break;
 			}
 			case SizeClass::Small:
@@ -541,7 +685,9 @@ void Universe::RenderParticle(Particle const & _particle, bool _isTrail)
 
 		if (m_debugParticleInfo && !_isTrail)
 		{
-			al_draw_textf(g_font, g_colWhite, (int)x, (int)y, 0, "m:%.3f sp:%.3f", _particle.m_mass, _particle.GetVel().Mag());
+			ostringstream ss;
+			ss << "m:" << setprecision(2) << _particle.m_mass << " sp:" << _particle.GetVel().Mag();
+			al_draw_textf(g_font, g_colWhite, (int)x, (int)y, 0, ss.str().c_str(), _particle.m_mass, _particle.GetVel().Mag());
 			al_draw_line(x, y, x + _particle.GetVel().x, y + _particle.GetVel().y, _particle.m_col, 1.f);
 		}
 	}
@@ -795,9 +941,12 @@ void Universe::MakeSpiralUniverse(float startMass, int numParticles, float r, fl
 	}
 }
 
+const string saveLoadFilename = "save.txt";
+
 void Universe::Save()
 {
-	ofstream file("save.txt", std::ios::trunc);
+	// todo change to use Particle operator <<
+	ofstream file(saveLoadFilename, std::ios::trunc);
 	file.exceptions(std::ifstream::failbit | std::ifstream::badbit | std::ifstream::eofbit);
 	ostringstream ss;
 	ss << m_particles.size() << endl;
@@ -813,9 +962,13 @@ void Universe::Save()
 
 void Universe::Load()
 {
+	// todo change to use Particle operator >>
+	if (!std::filesystem::exists(saveLoadFilename))
+		return;
+
 	m_particles.clear();
 	m_trails.clear();
-	ifstream file("save.txt");
+	ifstream file(saveLoadFilename);
 	//file.exceptions(std::ifstream::failbit | std::ifstream::badbit | std::ifstream::eofbit);
 	int numParticles = -1;
 	string line;
