@@ -15,6 +15,7 @@
 
 #include <cmath>
 
+#include <algorithm>
 #include <unordered_set>
 #include <queue>
 #include <vector>
@@ -37,7 +38,7 @@ using namespace std;
 auto versionText = "v1.5";
 
 // Default async policy is that std::async will decide whether each particle update is run on a new thread or the main thread
-#define ASYNC_POLICY_DEFAULT 0
+#define ASYNC_POLICY_DEFAULT 1
 
 // asyncPolicy of launch::deferred means threading will not be used
 // asyncPolicy of launch::async means that each particle update will happen on a separate thread
@@ -45,12 +46,19 @@ auto versionText = "v1.5";
 auto asyncPolicy = std::launch::deferred;
 #endif
 
+// todo need to be able to adjust while running to find best balance, too many squares makes it run slower
+const int gridRowsCols = 20;
+
+// High = faster but less accurate, if it's equal or close to gridRowsCols there's no benefit in the grid based 
+// approach (in fact it will be worse than the original version)
+const int highAccuracyGridDistance = 6;
+
 const int DEFAULT_TRAIL_INTERVAL = 4;
 const double DEFAULT_G = 6.672 * 0.00001;	// some preset universes such as spiral use different G values
 
 const int drawTrailInterval = 1; // 4;
 
-const int spiralNumParticlesDefault = 10;
+const int spiralNumParticlesDefault = 50;
 const float spiralMassDecrease = 0.95f;		// used 0.99 in latest video
 
 const float particleEdgeThickness = 1.5f;
@@ -99,23 +107,6 @@ extern int g_fontSize;
 
 ifstream inputFile;
 ofstream outputFile;
-
-template<typename T>
-string ToString(unordered_set<T> const& set)
-{
-	bool first = true;
-	string str = "{";
-	for (auto i : set)
-	{
-		if (!first)
-		{
-			str += ",";
-		}
-		first = false;
-		str += to_string(i);
-	}
-	return str + "}";
-}
 
 std::ostream& operator<<(std::ostream& os, ALLEGRO_COLOR const& col)
 {
@@ -170,7 +161,7 @@ Universe::Universe(int _maxTrailParticles):
 	m_userGeneratedParticleMass(1e5f),
 	m_numSpiralParticles(spiralNumParticlesDefault)
 {
-	CreateUniverse(5);
+	CreateUniverse(4);
 
 	switch (recordingMode)
 	{
@@ -378,11 +369,12 @@ void Universe::Advance(float _deltaTime)
 
 using ParticleList = vector<Particle*>;
 
-int const gridRowsCols = 50;
 
 template<typename T>
 void GetGridExtents(T const& particles, double& minX, double& maxX, double& minY, double& maxY, double& gridW, double& gridH, double& stepX, double& stepY)
 {
+	const double minGridSize = 1000.f;
+
 	minX = minY = numeric_limits<double>::infinity();
 	maxX = maxY = -numeric_limits<double>::infinity();
 	for (auto const& p : particles)
@@ -394,6 +386,19 @@ void GetGridExtents(T const& particles, double& minX, double& maxX, double& minY
 	}
 	gridW = maxX - minX;
 	gridH = maxY - minY;
+
+	// Enforce min grid size, amongst other benefits the simulation may go weird with very tiny grids
+	if (gridW < minGridSize)
+	{
+		gridW = minGridSize;
+		maxX = minX + minGridSize;
+	}
+	if (gridH < minGridSize)
+	{
+		gridH = minGridSize;
+		maxY = minY + minGridSize;
+	}
+
 	stepX = gridW / (float)gridRowsCols;
 	stepY = gridH / (float)gridRowsCols;
 }
@@ -402,8 +407,6 @@ void Universe::AdvanceGravity()
 {
 	// Check every other particle and for each one, adjust my velocity
 	// according to the gravitational attraction.
-	// Use m_particlesCopy to get the pos of each particle because that stores the
-	// state of the particle poses at the start of the universe advance.
 
 	// Gravitational equation:
 	// Force = (GMm / r^2)
@@ -411,8 +414,28 @@ void Universe::AdvanceGravity()
 	// M and m are the masses of the two objects
 	// r is the distance between the two objects
 
-	vector<unordered_set<int>> mergeSets(0);
-	std::mutex mergeMutex;
+	// Merging particles: when a collision is detected, we make a note that we will merge the other particle into
+	// the current particle at the end of the frame. If the current particle collides with multiple other particles
+	// during the same frame, we'll create multiple entries and merge them in sequence
+	// Used to reference the particles by index but now do the second one by pointer because we don't know the other
+	// particle's index in m_particles when we find it in a grid square
+	vector<pair<int,Particle*>> mergePairs;
+	
+	std::mutex mergeMutex; // todo I'm not confident this mutex stuff is all correct
+
+	// Trying to think through cases where merging could go wrong:
+	
+	// Simple case
+	// Particles A, B (idx 0, 1)
+	// A collides with B, gets added to merge pair (0, 1)
+	// B merged into A, B deleted. Deletion happens after all merging has taken place, highest index first
+
+	// Case 2
+	// A, B, C (0, 1, 2)
+	// A collides with B, gets added to merge pair (0, 1)
+	// B collides with C, gets added to merge pair (1, 2)
+	// B merged into A. C merged into B, but B is about to be deleted, so the mass of C is lost.
+	// Should fix in future but unlikely to happen very often
 
 	int count = m_particles.size();
 
@@ -422,8 +445,9 @@ void Universe::AdvanceGravity()
 
 	auto particleGridPos = [&](Particle const& p)
 	{
-		return pair<int, int>{ static_cast<int>((p.m_pos.x - minX) / gridW),
-							   static_cast<int>((p.m_pos.y - minY) / gridH) };
+		// Count a particle off the bottom/right as being in the bottom/right square
+		return pair<int, int>{ min(static_cast<int>( (p.m_pos.x - minX) / stepX), gridRowsCols-1),
+							   min(static_cast<int>( (p.m_pos.y - minY) / stepY), gridRowsCols-1) };
 	};
 
 	struct GridSquare
@@ -440,17 +464,22 @@ void Universe::AdvanceGravity()
 		grid.push_back(row);
 	}
 
+	// Track which grid squares which contain particles so we don't waste time checking particles against 
+	// empty squares
+	unordered_set<GridSquare*> nonEmptyGridSquares;
+
 	// Assign each particle to a grid rectangle
 	for (auto& p : m_particles)
 	{
 		auto [gx, gy] = particleGridPos(p);
 		if (gx < 0 || gy < 0 || gx >= grid[0].size() || gy >= grid.size())
-			continue;
+			continue;	// shouldn't ever happen
 		grid[gy][gx].particles.push_back(&p);
 		grid[gy][gx].mass += p.GetMass();
 		grid[gy][gx].centre = { minX + gx * stepX, minY + gy * stepY };
-
+		nonEmptyGridSquares.insert(&grid[gy][gx]);
 	}
+
 
 	std::vector<std::mutex> mutexes(count);
 
@@ -467,122 +496,91 @@ void Universe::AdvanceGravity()
 		// be attracted based on total mass of other grid square
 		auto [myGX, myGY] = particleGridPos(me);
 		
-		for (auto& row : grid)
+		// In the original simulation the interaction between any pair of particles is calculated only once, we
+		// avoid doing the interaction twice by doing nested for loops
+		// for outer = 0 to size-1
+		//   for inner = outer+1 to size-1
+		// Here we have three scenarios which need to be considered
+		// 1. Interaction with particles in same square. We could make a thread for each non-empty grid square and
+		//    run the simulation in the same way that we used to.
+		// 2. Interaction with particles in neighbouring squares. Could handle double interactions by skipping square
+		//    interactions with lower indexed squares
+		// 3. Interaction with distant grid cells. Could be combined with 1.
+		
+		// The above would probably be much faster than the way I'm doing it at the moment
+
+		for (auto& otherGridSquareP : nonEmptyGridSquares)
 		{
-			for (auto& otherGridSquare : row)
+			auto otherGridSquare = *otherGridSquareP;
+
+			// get grid coordinates from the first particle
+			auto [otherGX, otherGY] = particleGridPos(*otherGridSquare.particles.front());
+
+			// If other grid square is within this many grid squares, go through particles individually
+			int gridDistance = abs(myGX - otherGX) + abs(myGY - otherGY);
+			if (gridDistance <= highAccuracyGridDistance)
 			{
-				if (otherGridSquare.particles.empty())
-					continue;
-
-				// get grid coordinates from the first particle
-				auto [otherGX, otherGY] = particleGridPos(*otherGridSquare.particles.front());
-
-				// If other grid square is within this many grid squares, go through particles individually
-				const int maxDist = 4;
-				int gridDistance = abs(myGX - otherGX) + abs(myGY + otherGY);
-				if (gridDistance <= maxDist)
+				for (int p = 0; p < otherGridSquare.particles.size(); p++)
 				{
-					for (int p = 0; p < otherGridSquare.particles.size(); p++)
+					Particle& other = *(otherGridSquare.particles[p]);
+
+					if (&me == &other)
+						continue;
+
+					// Get vector between objects
+					VectorType objectsVector = other.GetPos() - me.GetPos();
+					float distance = objectsVector.Mag();
+
+#if 1
+					if (distance < size + other.GetSize())
 					{
-						Particle& other = *(otherGridSquare.particles[p]);
+						scoped_lock mergeLock(mergeMutex);
+						//argDebugf("Merge %d,%d", i, p);
+						mergePairs.emplace_back(i, &other);
 
-						if (&me == &other)
-							continue;
-
-						// Get vector between objects
-						VectorType objectsVector = other.GetPos() - me.GetPos();
-						float distance = objectsVector.Mag();
-
-						// For now, don't allow collisions between particles in different grid squres
-#if 0
-						if (gridDistance == 0 && distance < size + other.GetSize())
-						{
-							scoped_lock mergeLock(mergeMutex);
-
-							//argDebugf("Merge %d,%d", i, p);
-							bool mergedIntoExistingSet = false;
-							for (auto& set : mergeSets)
-							{
-								bool foundI = set.find(i) != set.end();
-								bool foundP = set.find(p) != set.end();
-								if (foundI || foundP)
-								{
-									//assert(mergedIntoExistingSet == false); // , "We should never find an item in more than one set");
-									//argDebugf("Found in existing set: i:%d p:%d", foundI, foundP);
-									if (!mergedIntoExistingSet)
-									{
-										set.insert(i);
-										set.insert(p);
-										mergedIntoExistingSet = true;
-									}
-								}
-							}
-
-							if (!mergedIntoExistingSet)
-								mergeSets.push_back(unordered_set<int>({ i, p }));
-
-							continue;
-						}
-#endif
-
-						// Calculate gravitational attraction
-						float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
-
-						// Apply force to velocity of particle (accel = force / mass)
-						objectsVector.Normalise();
-
-						VectorType objectsVectorOther = objectsVector;
-
-						float accelMe = force / meMass;
-						float accelOther = force / other.m_mass;
-
-#if 0
-						const float maxAccel = 100.f;
-
-						if (accelMe > maxAccel)
-						{
-							accelMe = maxAccel;
-							if (m_debug)
-							{
-								me.m_col = al_map_rgb(255, 0, 0);
-							}
-						}
-						if (accelOther > maxAccel)
-						{
-							accelOther = maxAccel;
-							if (m_debug)
-							{
-								other.m_col = al_map_rgb(255, 0, 0);
-							}
+						// Don't do gravitational force with another particle if we're going to merge with it
+						continue;
 					}
 #endif
-
-						scoped_lock lock2(mutexes[p]);
-
-						objectsVector.SetLength(accelMe);
-						objectsVectorOther.SetLength(accelOther);
-
-						me.AddToVel(objectsVector);
-						other.AddToVel(-objectsVectorOther);
-					}
-
-				}
-				else
-				{
-					// Gravitational attraction from this particle to a whole grid square
-					VectorType vec = grid[otherGY][otherGX].centre - me.GetPos();
-					float distance = vec.Mag();
 
 					// Calculate gravitational attraction
-					float force = (m_gravitationalConstant * meMass * grid[otherGY][otherGX].mass) / (distance * distance);
+					float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
 
 					// Apply force to velocity of particle (accel = force / mass)
-					vec.Normalise();
+					objectsVector.Normalise();
+
+					VectorType objectsVectorOther = objectsVector;
 
 					float accelMe = force / meMass;
-					vec.SetLength(accelMe);
-					me.AddToVel(vec);
+					float accelOther = force / other.m_mass;
+
+					// This lock was to allow for two-way particle interations without having to do the calculations
+					// twice. We can't do that here because we don't know the other particle's index in m_particles
+					// any more
+					//scoped_lock lock2(mutexes[p]);
+
+					objectsVector.SetLength(accelMe);
+					//objectsVectorOther.SetLength(accelOther);
+
+					me.AddToVel(objectsVector);
+					//other.AddToVel(-objectsVectorOther);
 				}
+			}
+			else
+			{
+				// Gravitational attraction from this particle to a whole grid square
+				VectorType vec = grid[otherGY][otherGX].centre - me.GetPos();
+				float distance = vec.Mag();
+
+				// Calculate gravitational attraction
+				float force = (m_gravitationalConstant * meMass * grid[otherGY][otherGX].mass) / (distance * distance);
+
+				// Apply force to velocity of particle (accel = force / mass)
+				vec.Normalise();
+
+				float accelMe = force / meMass;
+				vec.SetLength(accelMe);
+				me.AddToVel(vec);
 			}
 		}
 
@@ -590,7 +588,7 @@ void Universe::AdvanceGravity()
 
 	vector<std::future<void>> futures;
 
-	for (int i = 0; i < count - 1; i++)
+	for (int i = 0; i < count; i++)
 #if ASYNC_POLICY_DEFAULT
 		futures.push_back(std::async(execute, i));
 #else
@@ -605,16 +603,22 @@ void Universe::AdvanceGravity()
 	// We want to delete high indicies first so as not to invalidate lower indicies
 	priority_queue<int> deleteQueue;
 
-	for (auto& set : mergeSets)
+	for (auto& pair : mergePairs)
 	{
-		auto i = set.cbegin();
-		//argDebugf("Merge set: " + ToString(set) + " into %d", *i);
-		Particle& p = m_particles[*i];
-		while (++i != set.cend())
+		// Find index of second item in m_particles
+		int secondI;
+		for (secondI = 0; secondI < m_particles.size(); ++secondI)
 		{
-			//argDebugf("merging %d", *i);
-			p.Merge(m_particles[*i]);
-			deleteQueue.push(*i);
+			if (&m_particles[secondI] == pair.second)
+				break;
+		}
+
+		assert(secondI < m_particles.size());
+		if (secondI < m_particles.size() && pair.first < secondI)
+		{
+			//argDebugf("Merge pair: %d %d\n", pair.first, secondI);
+			m_particles[pair.first].Merge(*pair.second);
+			deleteQueue.push(secondI);
 		}
 	}
 	
@@ -811,7 +815,7 @@ void Universe::RenderParticle(Particle const & _particle, bool _isTrail)
 		if (m_debugParticleInfo && !_isTrail)
 		{
 			ostringstream ss;
-			ss << "m:" << setprecision(2) << _particle.m_mass << " sp:" << _particle.GetVel().Mag();
+			ss << "m:" << setprecision(2) << _particle.m_mass << " sp:" << setprecision(8) << _particle.GetVel().Mag();
 			al_draw_textf(g_font, g_colWhite, (int)x, (int)y, 0, ss.str().c_str(), _particle.m_mass, _particle.GetVel().Mag());
 			al_draw_line(x, y, x + _particle.GetVel().x, y + _particle.GetVel().y, _particle.m_col, 1.f);
 		}
@@ -956,14 +960,16 @@ void Universe::CreateUniverse(int _id)
 			// Sun
 			AddParticle(VectorType(sunX, sunY), VectorType(0, 0), sunMass, al_map_rgb(255, 255, 0), false);
 
+			// todo why does enabling these make all planets except Pluto disappear?????
+#if 0
 			// Mercury
-			addPlanet(0.387f, 0.054f);
+			addPlanet(0.387f, 0.054f, al_map_rgb(192, 128, 128));
 
 			// Venus
-			addPlanet(0.723f, 0.814f);
+			addPlanet(0.723f, 0.814f, al_map_rgb(0, 255, 64));
 
 			// Earth
-			addPlanet(1.f, 1.f);
+			addPlanet(1.f, 1.f, al_map_rgb(64, 192, 255));
 
 			// Mars
 			addPlanet(1.52f, 0.17f, al_map_rgb(255,64,64));
@@ -972,11 +978,13 @@ void Universe::CreateUniverse(int _id)
 			float jRadius = 5.2f;
 			p = addPlanet(jRadius, 317.8f, al_map_rgb(255, 128, 64));
 			//p->SetVel(VectorType(0.f, 0.182));
+#endif
 #if 1
 			// Saturn
 			addPlanet(9.54f, 95.2f, al_map_rgb(192, 192, 0));
 			//p->SetVel(VectorType(0.f, 0.15));
-
+#endif
+#if 1
 			// Uranus
 			addPlanet(19.19f, 14.48f, al_map_rgb(64, 255, 64));
 			//p->SetVel(VectorType(0.f, 0.1));
