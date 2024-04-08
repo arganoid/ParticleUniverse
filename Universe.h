@@ -99,6 +99,8 @@ private:
 	VectorType m_cameraPos;
 	//decltype(m_particles)::iterator m_cameraFollow;	// disabled as becomes invalidated when vector size changes
 
+	bool m_useGridBasedMode = false;
+
 	//bool m_debug;
 	bool m_debugParticleInfo;
 	bool m_freeze;
@@ -132,7 +134,8 @@ private:
 	void AddParticle(VectorType _pos, VectorType _vel, float _mass, ALLEGRO_COLOR _col, bool _immovable);
 	void AddTrailParticle(VectorType _pos, float _mass);
 
-	void AdvanceGravity();
+	void AdvanceGravityNormalMode();
+	void AdvanceGravityGridBasedMode();
 
 	void RenderParticle(Particle const & _particle, bool _isTrail = false);
 

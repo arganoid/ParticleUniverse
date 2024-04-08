@@ -251,12 +251,16 @@ void Universe::Advance(float _deltaTime)
 	}
 	else if (!m_freeze)
 	{
-		int numGravityUpdates = Keyboard::keyCurrentlyDown(ALLEGRO_KEY_Z) ? 10 : 1;
+		// todo make fast forward cut off if time taken is too long
+		int numGravityUpdates = Keyboard::keyCurrentlyDown(ALLEGRO_KEY_Z) ? 100 : 1;
 
 		for (int i = 0; i < numGravityUpdates; ++i)
 		{
 			// Update velocity of each particle
-			AdvanceGravity();
+			if (!m_useGridBasedMode)
+				AdvanceGravityNormalMode();
+			else
+				AdvanceGravityGridBasedMode();
 
 			// Now apply the velocity of each particle to its position
 			for (auto& p : m_particles)
@@ -351,6 +355,8 @@ void Universe::Advance(float _deltaTime)
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F4)) { m_numSpiralParticles -= 500; }
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F5)) { m_numSpiralParticles += 500; }
 
+	if (Keyboard::keyPressed(ALLEGRO_KEY_G)) { m_useGridBasedMode = !m_useGridBasedMode; }
+
 	AdvanceMenu();
 
 	if (recordingMode == RecordingMode::Save)
@@ -400,7 +406,126 @@ void GetGridExtents(T const& particles, double& minX, double& maxX, double& minY
 	stepY = gridH / (float)gridRowsCols;
 }
 
-void Universe::AdvanceGravity()
+void Universe::AdvanceGravityNormalMode()
+{
+	// Check every other particle and for each one, adjust my velocity
+	// according to the gravitational attraction.
+
+	// Gravitational equation:
+	// Force = (GMm / r^2)
+	// Where G is the universal gravitational constant
+	// M and m are the masses of the two objects
+	// r is the distance between the two objects
+
+	vector<unordered_set<int>> mergeSets;
+	mutex mergeMutex;
+
+	int count = m_particles.size();
+
+	vector<mutex> mutexes(count);
+
+	auto execute = [&](int i)
+		{
+			Particle& me = m_particles[i];
+			float const meMass = me.m_mass;
+			float size = me.GetSize();
+
+			scoped_lock lock1(mutexes[i]);
+
+			for (int p = i + 1; p < count; p++)
+			{
+				Particle& other = m_particles[p];
+
+				// Get vector between objects
+				VectorType objectsVector = other.GetPos() - me.GetPos();
+				float distance = objectsVector.Mag();
+
+				if (distance < size + other.GetSize())
+				{
+					scoped_lock mergeLock(mergeMutex);
+
+					//argDebugf("Merge %d,%d", i, p);
+					bool mergedIntoExistingSet = false;
+					for (auto& set : mergeSets)
+					{
+						bool foundI = set.find(i) != set.end();
+						bool foundP = set.find(p) != set.end();
+						if (foundI || foundP)
+						{
+							set.insert(i);
+							set.insert(p);
+							mergedIntoExistingSet = true;
+							break;
+						}
+					}
+
+					if (!mergedIntoExistingSet)
+						mergeSets.push_back(unordered_set<int>({ i, p }));
+
+					continue;
+				}
+
+				// Calculate gravitational attraction
+				float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
+
+				// Apply force to velocity of particle (accel = force / mass)
+				objectsVector.Normalise();
+
+				VectorType objectsVectorOther = objectsVector;
+
+				float accelMe = force / meMass;
+				float accelOther = force / other.m_mass;
+
+				scoped_lock lock2(mutexes[p]);
+
+				objectsVector.SetLength(accelMe);
+				objectsVectorOther.SetLength(accelOther);
+
+				me.AddToVel(objectsVector);
+				other.AddToVel(-objectsVectorOther);
+			}
+		};
+
+	vector<future<void>> futures;
+
+	for (int i = 0; i < count - 1; i++)
+#if ASYNC_POLICY_DEFAULT
+		futures.push_back(std::async(execute, i));
+#else
+		futures.push_back(std::async(asyncPolicy, execute, i));
+#endif
+
+	// Await all
+	for (size_t i = 0; i < futures.size(); ++i)
+		futures[i].wait();
+
+	// Priority queue because we are deleting based on index
+	// We want to delete high indicies first so as not to invalidate lower indicies
+	priority_queue<int> deleteQueue;
+
+	for (auto& set : mergeSets)
+	{
+		auto i = set.cbegin();
+		//argDebugf("Merge set: " + ToString(set) + " into %d", *i);
+		Particle& p = m_particles[*i];
+		while (++i != set.cend())
+		{
+			//argDebugf("merging %d", *i);
+			p.Merge(m_particles[*i]);
+			deleteQueue.push(*i);
+		}
+	}
+
+	// now delete old particles
+	while (!deleteQueue.empty())
+	{
+		//argDebugf("deleting %d", deleteQueue.top());
+		m_particles.erase(m_particles.begin() + deleteQueue.top());
+		deleteQueue.pop();
+	}
+}
+
+void Universe::AdvanceGravityGridBasedMode()
 {
 	// Check every other particle and for each one, adjust my velocity
 	// according to the gravitational attraction.
@@ -463,7 +588,7 @@ void Universe::AdvanceGravity()
 		nonEmptyGridSquares.insert(&grid[gy][gx]);
 	}
 
-	// Each particle had its own mutex because another particle might change its velocity, but we're not currently
+	// Each particle had its own mutex because another particle might change its velocity, but we're not
 	// doing two-way interactions in the current system
 	//vector<mutex> mutexes(count);
 
@@ -588,10 +713,9 @@ void Universe::AdvanceGravity()
 				me.AddToVel(vec);
 			}
 		}
-
 	};
 
-	vector<std::future<void>> futures;
+	vector<future<void>> futures;
 
 	for (int i = 0; i < count; i++)
 #if ASYNC_POLICY_DEFAULT
@@ -655,23 +779,25 @@ void Universe::Render()
 #endif 
 
 	// Grid lines
-	ALLEGRO_COLOR gridCol = al_map_rgb(32, 32, 32);
-	double minX, maxX, minY, maxY, gridW, gridH, stepX, stepY;
-	GetGridExtents(m_particles, minX, maxX, minY, maxY, gridW, gridH, stepX, stepY);
-	int gx = 0, gy = 0;
-	for (double x = minX; gx <= gridRowsCols; ++gx, x += stepX)
+	if (m_useGridBasedMode)
 	{
-		auto pos1 = WorldToScreen({ x, minY });
-		auto pos2 = WorldToScreen({ x, maxY });
-		al_draw_line(pos1.x, pos1.y, pos2.x, pos2.y, gridCol, 1.f);
+		ALLEGRO_COLOR gridCol = al_map_rgb(32, 32, 32);
+		double minX, maxX, minY, maxY, gridW, gridH, stepX, stepY;
+		GetGridExtents(m_particles, minX, maxX, minY, maxY, gridW, gridH, stepX, stepY);
+		int gx = 0, gy = 0;
+		for (double x = minX; gx <= gridRowsCols; ++gx, x += stepX)
+		{
+			auto pos1 = WorldToScreen({ x, minY });
+			auto pos2 = WorldToScreen({ x, maxY });
+			al_draw_line(pos1.x, pos1.y, pos2.x, pos2.y, gridCol, 1.f);
+		}
+		for (double y = minY; gy <= gridRowsCols; ++gy, y += stepY)
+		{
+			auto pos1 = WorldToScreen({ minX, y });
+			auto pos2 = WorldToScreen({ maxX, y });
+			al_draw_line(pos1.x, pos1.y, pos2.x, pos2.y, gridCol, 1.f);
+		}
 	}
-	for (double y = minY; gy <= gridRowsCols; ++gy, y += stepY)
-	{
-		auto pos1 = WorldToScreen({ minX, y });
-		auto pos2 = WorldToScreen({ maxX, y });
-		al_draw_line(pos1.x, pos1.y, pos2.x, pos2.y, gridCol, 1.f);
-	}
-
 
 	// Render each particle
 	for (auto const& p : m_particles)
@@ -726,6 +852,7 @@ void Universe::Render()
 	entries = { "Left mouse: Add particles",
 				"Right mouse: Remove particles",
 				"+/-: Zoom", "Cursor keys: Move",
+				"G: Toggle grid-based mode",
 				"Z: Fast forward",
 				"F1: Show/hide particle info",
 				"F2: Freeze",
