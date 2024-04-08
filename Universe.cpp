@@ -754,16 +754,12 @@ void Universe::RenderParticle(Particle const & _particle, bool _isTrail)
 {
 	float viewportHeight = m_viewportWidth / m_worldAspectRatio;
 
-	float leftEdge = m_cameraPos.x - (m_viewportWidth / 2.0f);
-	float topEdge = m_cameraPos.y - (viewportHeight / 2.0f);
-
-	const float scale = 1000.f;
-
-	float size = _particle.GetSize() / ((m_defaultViewportWidth / m_scW) * m_viewportWidth) * scale;
+	float size = _particle.GetSize() * (m_scW / m_viewportWidth);
 
 	VectorType pos = _particle.GetPos();
 
-	size = max(size, 1.1f);
+	// Uncomment this to show the smallest particles as circles rather than dots
+	//size = max(size, 1.1f);
 
 	enum class SizeClass
 	{
@@ -775,6 +771,7 @@ void Universe::RenderParticle(Particle const & _particle, bool _isTrail)
 
 	auto sizeClass = SizeClass::None;
 	// See if particle is within viewport
+	// todo use screen pos of particle
 	if (
 		(pos.GetX() + (size / 2.0f) > (m_cameraPos.x - (m_viewportWidth / 2.0f)))	// left
 		&& (pos.GetX() - (size / 2.0f) < (m_cameraPos.x + (m_viewportWidth / 2.0f)))	// right
