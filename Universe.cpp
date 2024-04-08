@@ -416,26 +416,12 @@ void Universe::AdvanceGravity()
 
 	// Merging particles: when a collision is detected, we make a note that we will merge the other particle into
 	// the current particle at the end of the frame. If the current particle collides with multiple other particles
-	// during the same frame, we'll create multiple entries and merge them in sequence
-	// Used to reference the particles by index but now do the second one by pointer because we don't know the other
+	// during the same frame, they'll all be added to the same merge set.
+	// Used to reference the particles by index but do it by pointer because we don't know the other
 	// particle's index in m_particles when we find it in a grid square
-	vector<pair<int,Particle*>> mergePairs;
-	
-	std::mutex mergeMutex; // todo I'm not confident this mutex stuff is all correct
+	vector<unordered_set<Particle*>> mergeSets;
 
-	// Trying to think through cases where merging could go wrong:
-	
-	// Simple case
-	// Particles A, B (idx 0, 1)
-	// A collides with B, gets added to merge pair (0, 1)
-	// B merged into A, B deleted. Deletion happens after all merging has taken place, highest index first
-
-	// Case 2
-	// A, B, C (0, 1, 2)
-	// A collides with B, gets added to merge pair (0, 1)
-	// B collides with C, gets added to merge pair (1, 2)
-	// B merged into A. C merged into B, but B is about to be deleted, so the mass of C is lost.
-	// Should fix in future but unlikely to happen very often
+	mutex mergeMutex;
 
 	int count = m_particles.size();
 
@@ -480,8 +466,9 @@ void Universe::AdvanceGravity()
 		nonEmptyGridSquares.insert(&grid[gy][gx]);
 	}
 
-
-	std::vector<std::mutex> mutexes(count);
+	// Each particle had its own mutex because another particle might change its velocity, but we're not currently
+	// doing two-way interactions in the current system
+	//vector<mutex> mutexes(count);
 
 	auto execute = [&](int i)
 	{
@@ -489,7 +476,7 @@ void Universe::AdvanceGravity()
 		float const meMass = me.m_mass;
 		float size = me.GetSize();
 
-		scoped_lock lock1(mutexes[i]);
+		//scoped_lock lock1(mutexes[i]);
 
 		// go through each grid square
 		// if it's our own grid square or within certain distance, go through particles as normal, otherwise
@@ -535,8 +522,29 @@ void Universe::AdvanceGravity()
 					if (distance < size + other.GetSize())
 					{
 						scoped_lock mergeLock(mergeMutex);
+						
 						//argDebugf("Merge %d,%d", i, p);
-						mergePairs.emplace_back(i, &other);
+
+						// Find if there's an existing merge set which contains at least one of the two particles,
+						// if so merge particles into that existing merge set
+						bool mergedIntoExistingSet = false;
+						for (auto& set : mergeSets)
+						{
+							bool foundI = set.find(&m_particles[i]) != set.end();
+							bool foundP = set.find(&other) != set.end();
+							if (foundI || foundP)
+							{
+								//argDebugf("Found in existing set: i:%d p:%d", foundI, foundP);
+								set.insert(&m_particles[i]);
+								set.insert(&other);
+								mergedIntoExistingSet = true;
+								break;
+							}
+						}
+
+						// Otherwise create a new merge set
+						if (!mergedIntoExistingSet)
+							mergeSets.push_back({ &m_particles[i], &other });
 
 						// Don't do gravitational force with another particle if we're going to merge with it
 						continue;
@@ -603,22 +611,25 @@ void Universe::AdvanceGravity()
 	// We want to delete high indicies first so as not to invalidate lower indicies
 	priority_queue<int> deleteQueue;
 
-	for (auto& pair : mergePairs)
+	for (auto& set : mergeSets)
 	{
-		// Find index of second item in m_particles
-		int secondI;
-		for (secondI = 0; secondI < m_particles.size(); ++secondI)
-		{
-			if (&m_particles[secondI] == pair.second)
-				break;
-		}
+		//argDebugf("Merge set: " + ToString(set) + " into %d", *i);	// old
 
-		assert(secondI < m_particles.size());
-		if (secondI < m_particles.size() && pair.first < secondI)
+		auto it = set.cbegin();
+		Particle* firstParticle = *it;
+		while (++it != set.cend())
 		{
-			//argDebugf("Merge pair: %d %d\n", pair.first, secondI);
-			m_particles[pair.first].Merge(*pair.second);
-			deleteQueue.push(secondI);
+			firstParticle->Merge(**it);
+
+			// Find index of other particle in m_particles so we can delete it later
+			int i;
+			for (i = 0; i < m_particles.size(); ++i)
+			{
+				if (&m_particles[i] == *it)
+					break;
+			}
+			assert(i < m_particles.size());
+			deleteQueue.push(i);
 		}
 	}
 	
