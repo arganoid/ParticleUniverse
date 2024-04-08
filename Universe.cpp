@@ -59,7 +59,7 @@ const double DEFAULT_G = 6.672 * 0.00001;	// some preset universes such as spira
 const int drawTrailInterval = 1; // 4;
 
 const int spiralNumParticlesDefault = 1500;
-const float spiralMassDecrease = 0.95f;		// used 0.99 in latest video
+const float spiralMassDecrease = 0.99f;		// used 0.99 in latest video, old version used 0.95
 
 const float particleEdgeThickness = 1.5f;
 
@@ -682,6 +682,7 @@ void Universe::Render()
 	// top right - version number and nearest particle details
 	al_draw_text(g_font, g_colWhite, al_get_display_width(g_display), 0, ALLEGRO_ALIGN_RIGHT, versionText);
 
+	// Use mouse to show particle stats
 	{
 		ALLEGRO_MOUSE_STATE mouseState;
 		al_get_mouse_state(&mouseState);
@@ -952,7 +953,7 @@ void Universe::CreateUniverse(int _id)
 			float const massMult = 10;
 			float const sunMass = 332830 * massMult;
 
-			float const distMult = 10.f;
+			float const distMult = 150.f;
 
 			auto addPlanet = [&](float _distAU, float _earthMasses, ALLEGRO_COLOR _col = al_map_rgb(255,255,255), bool _immovable = false)
 			{
@@ -967,7 +968,7 @@ void Universe::CreateUniverse(int _id)
 			AddParticle(VectorType(sunX, sunY), VectorType(0, 0), sunMass, al_map_rgb(255, 255, 0), false);
 
 			// todo why does enabling these make all planets except Pluto disappear?????
-#if 0
+#if 1
 			// Mercury
 			addPlanet(0.387f, 0.054f, al_map_rgb(192, 128, 128));
 
