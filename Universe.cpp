@@ -58,7 +58,7 @@ const double DEFAULT_G = 6.672 * 0.00001;	// some preset universes such as spira
 
 const int drawTrailInterval = 1; // 4;
 
-const int spiralNumParticlesDefault = 50;
+const int spiralNumParticlesDefault = 1500;
 const float spiralMassDecrease = 0.95f;		// used 0.99 in latest video
 
 const float particleEdgeThickness = 1.5f;
