@@ -658,6 +658,7 @@ void Universe::Render()
 #endif 
 
 	// Grid lines
+	ALLEGRO_COLOR gridCol = al_map_rgb(32, 32, 32);
 	double minX, maxX, minY, maxY, gridW, gridH, stepX, stepY;
 	GetGridExtents(m_particles, minX, maxX, minY, maxY, gridW, gridH, stepX, stepY);
 	int gx = 0, gy = 0;
@@ -665,13 +666,13 @@ void Universe::Render()
 	{
 		auto pos1 = WorldToScreen({ x, minY });
 		auto pos2 = WorldToScreen({ x, maxY });
-		al_draw_line(pos1.x, pos1.y, pos2.x, pos2.y, g_colWhite, 1.f);
+		al_draw_line(pos1.x, pos1.y, pos2.x, pos2.y, gridCol, 1.f);
 	}
 	for (double y = minY; gy <= gridRowsCols; ++gy, y += stepY)
 	{
 		auto pos1 = WorldToScreen({ minX, y });
 		auto pos2 = WorldToScreen({ maxX, y });
-		al_draw_line(pos1.x, pos1.y, pos2.x, pos2.y, g_colWhite, 1.f);
+		al_draw_line(pos1.x, pos1.y, pos2.x, pos2.y, gridCol, 1.f);
 	}
 
 
