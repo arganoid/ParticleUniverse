@@ -102,10 +102,6 @@ private:
 	bool m_debugParticleInfo;
 	bool m_freeze;
 
-	bool m_fastForward;
-
-	int m_gravityUpdatesPerFrame;
-
 	double m_userGeneratedParticleMass;
 	int m_numSpiralParticles;
 
@@ -130,7 +126,6 @@ public:
 	void Advance(float _deltaTime);
 	void Render();
 	void OnClose();
-	int GetFastForward() { return m_fastForward; }
 
 private:
 	void AddParticle(VectorType _pos, VectorType _vel, float _mass, ALLEGRO_COLOR _col, bool _immovable);

@@ -66,7 +66,6 @@ const float particleEdgeThickness = 1.5f;
 // Recording: set num particles much higher (e.g. 15k like in my latest video), set recording mode
 // to save, and update the filenames below. Probably also enable save on quit, and then enable
 // load on start to resume the recording.
-// While recording a fixed deltatime of 1/60 will be used (see Advance)
 
 enum class RecordingMode
 {
@@ -99,7 +98,6 @@ const float rightClickDeleteMaxPixelDistance = 60.f;
 
 extern ALLEGRO_DISPLAY *g_display;
 extern ALLEGRO_FONT *g_font;
-extern ALLEGRO_KEYBOARD_STATE g_kbState;
 extern ALLEGRO_COLOR g_colWhite;
 extern int g_fontSize;
 
@@ -143,7 +141,6 @@ Universe::Universe(int _maxTrailParticles):
 	m_worldAspectRatio((float)m_scW / (float)m_scH),
 	//m_debug(true),
 	m_debugParticleInfo(false),
-	m_fastForward(false),
 	m_currentMenuPage(MenuPage::Default),
 	m_particles(500),
 #if TRAILS_ON
@@ -156,7 +153,6 @@ Universe::Universe(int _maxTrailParticles):
 	m_trailsEnabled(false),
 	m_createTrailInterval(DEFAULT_TRAIL_INTERVAL),
 	m_createTrailIntervalCounter(0),
-	m_gravityUpdatesPerFrame(1),
 	m_freeze(false),
 	m_userGeneratedParticleMass(1e5f),
 	m_numSpiralParticles(spiralNumParticlesDefault)
@@ -200,8 +196,11 @@ void Universe::AddTrailParticle(VectorType _pos, float _mass)
 
 void Universe::Advance(float _deltaTime)
 {
+/*
+	// When I wrote this I had forgotten that the gravity simulation isn't linked to the frame rate
 	if (recordingMode == RecordingMode::Save)
 		_deltaTime = 1 / 60.f;
+*/
 
 	// Create trail particles
 	if (m_maxTrails > 0 && (m_createTrailIntervalCounter++ % m_createTrailInterval == 0))
@@ -252,7 +251,9 @@ void Universe::Advance(float _deltaTime)
 	}
 	else if (!m_freeze)
 	{
-		for (int i = 0; i < m_gravityUpdatesPerFrame; ++i)
+		int numGravityUpdates = Keyboard::keyCurrentlyDown(ALLEGRO_KEY_Z) ? 10 : 1;
+
+		for (int i = 0; i < numGravityUpdates; ++i)
 		{
 			// Update velocity of each particle
 			AdvanceGravity();
@@ -314,8 +315,6 @@ void Universe::Advance(float _deltaTime)
 		lastMouseState = mouseState;
 	}
 	
-	al_get_keyboard_state(&g_kbState);
-
 	// Zoom out
 	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_MINUS) || Keyboard::keyCurrentlyDown(ALLEGRO_KEY_PAD_MINUS))
 	{
@@ -351,8 +350,6 @@ void Universe::Advance(float _deltaTime)
 	
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F4)) { m_numSpiralParticles -= 500; }
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F5)) { m_numSpiralParticles += 500; }
-
-	m_fastForward = Keyboard::keyCurrentlyDown(ALLEGRO_KEY_Z);
 
 	AdvanceMenu();
 
@@ -1132,7 +1129,6 @@ void Universe::Load()
 
 void Universe::AdvanceMenu()
 {
-	al_get_keyboard_state(&g_kbState);
 	switch (m_currentMenuPage)
 	{
 		case MenuPage::Default:
