@@ -1,18 +1,20 @@
 #include <map>
 #include <iostream>
-#include <iomanip>
 #include <fstream>
-#include <vector>
+//#include <vector>
 #include <sstream>
 #include <mutex>
-
-#include <stdarg.h>
 
 #include <allegro5/allegro.h>
 
 #include "ARGUtils.h"
 
 #define DEBUG_ENABLED 1
+#define USE_OUTPUTDEBUGSTRING 0
+
+#if USE_OUTPUTDEBUGSTRING
+#include "windows.h"
+#endif
 
 using namespace std;
 
@@ -34,15 +36,18 @@ void argDebug(string const& _str)
 #if DEBUG_ENABLED
 	scoped_lock lock(g_logMutex);	// needed? http://stackoverflow.com/questions/22539282/is-msvcrts-implementation-of-fprintf-thread-safe
 
-	//sprintf_s(buf, "%d: ", g_advanceCounter);
-	//OutputDebugString( string(buf + _str + "\n").c_str() );
-
 	if (!g_logFile.is_open())
 	{
 		g_logFile.open("argcore.log");
 	}
 
 	g_logFile << g_advanceCounter << ": " << _str << endl << flush;
+
+#if USE_OUTPUTDEBUGSTRING
+	ostringstream ss;
+	ss << g_advanceCounter << ": " << _str << endl;
+	OutputDebugString( ss.str().c_str());
+#endif
 
 //	dbgOutput.push_back(_str);
 #endif

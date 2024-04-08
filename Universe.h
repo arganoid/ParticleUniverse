@@ -55,6 +55,7 @@ struct Particle
 	__forceinline void SetMass(float _mass) { m_mass = _mass; }
 
 	__forceinline float GetSize() const { return log(m_mass) * 2.5f; }
+	//__forceinline float GetSize() const { return (log(m_mass) / log(2.71828)) * 2.5f; }
 
 	void operator = (Particle const& _param)
 	{
@@ -102,10 +103,6 @@ private:
 	bool m_debugParticleInfo;
 	bool m_freeze;
 
-	bool m_fastForward;
-
-	int m_gravityUpdatesPerFrame;
-
 	double m_userGeneratedParticleMass;
 	int m_numSpiralParticles;
 
@@ -130,7 +127,6 @@ public:
 	void Advance(float _deltaTime);
 	void Render();
 	void OnClose();
-	int GetFastForward() { return m_fastForward; }
 
 private:
 	void AddParticle(VectorType _pos, VectorType _vel, float _mass, ALLEGRO_COLOR _col, bool _immovable);

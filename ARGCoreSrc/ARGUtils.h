@@ -1,9 +1,6 @@
 #pragma once
 
-#include "Vector2.h"
-
 #include <string>
-#include <cmath>
 
 inline int getrandom(int min, int max)
 {
