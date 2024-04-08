@@ -1,5 +1,3 @@
-.hg
-.hgignore
 /.vs
 /Debug
 /Release
@@ -10,3 +8,4 @@
 save.txt
 Build
 ParticleUniverse.vcxproj.user
+butler.txt
