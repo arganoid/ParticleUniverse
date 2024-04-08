@@ -55,6 +55,7 @@ struct Particle
 	__forceinline void SetMass(float _mass) { m_mass = _mass; }
 
 	__forceinline float GetSize() const { return log(m_mass) * 2.5f; }
+	//__forceinline float GetSize() const { return (log(m_mass) / log(2.71828)) * 2.5f; }
 
 	void operator = (Particle const& _param)
 	{
