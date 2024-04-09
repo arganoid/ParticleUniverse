@@ -101,8 +101,6 @@ extern ALLEGRO_FONT *g_font;
 extern ALLEGRO_COLOR g_colWhite;
 extern int g_fontSize;
 
-#define TRAILS_ON 1
-
 ifstream inputFile;
 ofstream outputFile;
 
@@ -131,7 +129,7 @@ inline std::istream& operator>> (std::istream& is, Particle& p)
 }
 
 
-Universe::Universe(int _maxTrailParticles):
+Universe::Universe():
 	m_gravitationalConstant(DEFAULT_G),
 	m_defaultViewportWidth(800.0f),
 	m_viewportWidth(m_defaultViewportWidth * 1.f),
@@ -143,20 +141,24 @@ Universe::Universe(int _maxTrailParticles):
 	m_debugParticleInfo(false),
 	m_currentMenuPage(MenuPage::Default),
 	m_particles(500),
-#if TRAILS_ON
-	m_maxTrails(_maxTrailParticles),
-	m_trails(_maxTrailParticles),
-#else
-	m_maxTrails(0),
-	m_trails(0),
-#endif
-	m_trailsEnabled(false),
-	m_createTrailInterval(DEFAULT_TRAIL_INTERVAL),
+	m_showTrails(false),
+	m_createTrailInterval("trails", "createTrailInterval", "Create trail interval", DEFAULT_TRAIL_INTERVAL),
+	m_maxTrails("trails", "maxTrails", "Max trails", 100000),
 	m_createTrailIntervalCounter(0),
 	m_freeze(false),
 	m_userGeneratedParticleMass(1e5f),
 	m_numSpiralParticles(spiralNumParticlesDefault)
 {
+	Config::configFilename = "ParticleUniverse.cfg";
+	Config::config = al_load_config_file(Config::configFilename.c_str());
+	if (!Config::config)
+	{
+		// create a config file with all config option wrapper default values (todo put these in a list or something)
+		Config::config = al_create_config();
+		m_createTrailInterval.set(m_createTrailInterval);
+		m_maxTrails.set(m_maxTrails);
+	}
+
 	CreateUniverse(4);
 
 	switch (recordingMode)
@@ -203,7 +205,7 @@ void Universe::Advance(float _deltaTime)
 */
 
 	// Create trail particles
-	if (m_maxTrails > 0 && (m_createTrailIntervalCounter++ % m_createTrailInterval == 0))
+	if (m_maxTrails > 0 && m_createTrailIntervalCounter++ % m_createTrailInterval == 0)
 	{
 		for (auto const& p : m_particles)
 		{
@@ -350,7 +352,7 @@ void Universe::Advance(float _deltaTime)
 
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F1)) { m_debugParticleInfo = !m_debugParticleInfo; }
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F2)) { m_freeze = !m_freeze; }
-	if (Keyboard::keyPressed(ALLEGRO_KEY_F3)) { m_trailsEnabled = !m_trailsEnabled; }
+	if (Keyboard::keyPressed(ALLEGRO_KEY_F3)) { m_showTrails = !m_showTrails; }
 	
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F4)) { m_numSpiralParticles -= 500; }
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F5)) { m_numSpiralParticles += 500; }
@@ -501,7 +503,7 @@ void Universe::AdvanceGravityNormalMode()
 
 	// Priority queue because we are deleting based on index
 	// We want to delete high indicies first so as not to invalidate lower indicies
-	priority_queue<int> deleteQueue;
+	priority_queue<size_t> deleteQueue;
 
 	for (auto& set : mergeSets)
 	{
@@ -765,9 +767,8 @@ void Universe::AdvanceGravityGridBasedMode()
 
 void Universe::Render()
 {
-#if TRAILS_ON
 	// Render trails
-	if (m_trailsEnabled)
+	if (m_showTrails)
 	{
 		int iTrail = 0;
 		for( auto const& particle : m_trails )
@@ -775,8 +776,7 @@ void Universe::Render()
 			if (iTrail++ % drawTrailInterval == 0)
 				RenderParticle(particle, true);
 		}
-}
-#endif 
+	}
 
 	// Grid lines
 	if (m_useGridBasedMode)
@@ -856,7 +856,7 @@ void Universe::Render()
 				"Z: Fast forward",
 				"F1: Show/hide particle info",
 				"F2: Freeze",
-				"F3: Enable/disable trails",
+				"F3: Show/hide trails",
 				"F4/F5: Change spiral particles to generate",
 				"ESC: Quit" };
 	y = al_get_display_height(g_display) - g_fontSize * entries.size();
@@ -978,7 +978,6 @@ void Universe::CreateUniverse(int _id)
 			AddParticle(VectorType(150, 400), VectorType(0, 0), 60000);
 			AddParticle(VectorType(600, 0), VectorType(0, -0.8), 70000);
 			AddParticle(VectorType(200, 300), VectorType(-0.4, 0), 80000);
-			m_createTrailInterval = 5;
 			break;
 		}
 		case 2:	// Rectangular
@@ -1013,8 +1012,6 @@ void Universe::CreateUniverse(int _id)
 
 			//		AddParticle(VectorType(400,300),	VectorType(0,0),	size0);
 
-			m_createTrailInterval = DEFAULT_TRAIL_INTERVAL;
-
 			break;
 		}
 #if 0
@@ -1042,8 +1039,6 @@ void Universe::CreateUniverse(int _id)
 				//				AddParticle(VectorType(x,y),	VectorType(tan(count) / 8.0f,tan(count) / 8.0f),	size);
 			}
 
-			m_createTrailInterval = DEFAULT_TRAIL_INTERVAL;
-
 			break;
 		}
 #endif
@@ -1052,8 +1047,6 @@ void Universe::CreateUniverse(int _id)
 			for (int x = 0; x <= 800; x += 80)
 				for (int y = 0; y <= 600; y += 60)
 					AddParticle(VectorType(x, y), VectorType(0, 0), 1e4);
-
-			m_createTrailInterval = DEFAULT_TRAIL_INTERVAL;
 
 			break;
 		}
@@ -1138,9 +1131,6 @@ void Universe::CreateUniverse(int _id)
 				addPlanet((float)getrandom(1, 100) / 10.f, ((float)getrandom(1, 200) / 10.f));
 			}
 #endif
-
-			m_createTrailInterval = DEFAULT_TRAIL_INTERVAL;
-			//m_createTrailInterval = 5;
 
 			break;
 		}

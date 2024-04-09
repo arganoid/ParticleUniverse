@@ -166,6 +166,7 @@
   <ItemGroup>
     <ClInclude Include="src\ARGCore\ARGMath.h" />
     <ClInclude Include="src\ARGCore\ARGUtils.h" />
+    <ClInclude Include="src\ARGCore\Config.h" />
     <ClInclude Include="src\ARGCore\GameBase.h" />
     <ClInclude Include="src\ARGCore\Keyboard.h" />
     <ClInclude Include="src\ARGCore\TimingManager.h" />

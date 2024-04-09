@@ -5,6 +5,7 @@
 
 #include "ARGCore\ARGUtils.h"
 #include "ARGCore\Vector2.h"
+#include "ARGCore\Config.h"
 
 #include <allegro5/allegro.h>
 
@@ -82,10 +83,12 @@ private:
 	std::vector<Particle> m_particles;
 	std::deque<Particle> m_trails;
 
-	size_t m_maxTrails;
-	int m_createTrailInterval;	// 1 = add to trails every frame, etc
+	// Config options
+	ConfigOptionWrapper<size_t> m_maxTrails;
+	ConfigOptionWrapper<int> m_createTrailInterval;	// 1 = add to trails every frame, etc
+
 	int m_createTrailIntervalCounter;
-	bool m_trailsEnabled;
+	bool m_showTrails;
 
 	double m_gravitationalConstant;
 
@@ -125,7 +128,7 @@ private:
 
 
 public:
-	Universe(int _maxParticleTrails);
+	Universe();
 	void Advance(float _deltaTime);
 	void Render();
 	void OnClose();

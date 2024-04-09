@@ -82,5 +82,8 @@
     <ClInclude Include="src\ARGCore\Vector2.h">
       <Filter>Header Files\ARGCore</Filter>
     </ClInclude>
+    <ClInclude Include="src\ARGCore\Config.h">
+      <Filter>Header Files\ARGCore</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

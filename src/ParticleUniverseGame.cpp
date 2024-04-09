@@ -8,7 +8,7 @@
 ParticleUniverseGame::ParticleUniverseGame() :
 	GameBase(true, 0)
 {
-	m_universe = std::make_unique<Universe>(300000);
+	m_universe = std::make_unique<Universe>();
 }
 
 void ParticleUniverseGame::Advance(float _deltaTime)
