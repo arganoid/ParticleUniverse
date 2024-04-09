@@ -580,7 +580,7 @@ void Universe::AdvanceGravityGridBasedMode()
 	for (auto& p : m_particles)
 	{
 		auto [gx, gy] = particleGridPos(p);
-		if (gx < 0 || gy < 0 || gx >= grid[0].size() || gy >= grid.size())
+		if (gx < 0 || gy < 0 || (size_t)gx >= grid[0].size() || (size_t)gy >= grid.size())
 			continue;	// shouldn't ever happen
 		grid[gy][gx].particles.push_back(&p);
 		grid[gy][gx].mass += p.GetMass();
@@ -629,7 +629,7 @@ void Universe::AdvanceGravityGridBasedMode()
 			int gridDistance = abs(myGX - otherGX) + abs(myGY - otherGY);
 			if (gridDistance <= highAccuracyGridDistance)
 			{
-				for (int p = 0; p < otherGridSquare.particles.size(); p++)
+				for (size_t p = 0; p < otherGridSquare.particles.size(); p++)
 				{
 					Particle& other = *(otherGridSquare.particles[p]);
 
@@ -743,7 +743,7 @@ void Universe::AdvanceGravityGridBasedMode()
 			firstParticle->Merge(**it);
 
 			// Find index of other particle in m_particles so we can delete it later
-			int i;
+			size_t i;
 			for (i = 0; i < m_particles.size(); ++i)
 			{
 				if (&m_particles[i] == *it)
