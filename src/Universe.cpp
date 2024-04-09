@@ -144,6 +144,7 @@ Universe::Universe():
 	m_showTrails(false),
 	m_createTrailInterval("trails", "createTrailInterval", "Create trail interval", DEFAULT_TRAIL_INTERVAL),
 	m_maxTrails("trails", "maxTrails", "Max trails", 100000),
+	m_sizeLogBase("particles", "sizeLogBase", "Size log base", 2.7),
 	m_createTrailIntervalCounter(0),
 	m_freeze(false),
 	m_userGeneratedParticleMass(1e5f),
@@ -157,6 +158,7 @@ Universe::Universe():
 		Config::config = al_create_config();
 		m_createTrailInterval.set(m_createTrailInterval);
 		m_maxTrails.set(m_maxTrails);
+		m_sizeLogBase.set(m_sizeLogBase);
 	}
 
 	CreateUniverse(4);
@@ -426,67 +428,77 @@ void Universe::AdvanceGravityNormalMode()
 
 	vector<mutex> mutexes(count);
 
+	const float sizeLogBase = m_sizeLogBase;
+
+	// Cache sizes to avoid having to call GetSize (with slow logarithm calls) multiple times per particle
+	// 10k particles, with only a single log, update = 170ms
+	// with two logs, update = 203ms
+	// with caching sizes, update = 154ms
+	vector<float> sizes(count);
+	for (size_t i = 0; i < m_particles.size(); ++i)
+		sizes[i] = m_particles[i].GetSize(sizeLogBase);
+
 	auto execute = [&](int i)
+	{
+		Particle& me = m_particles[i];
+		float const meMass = me.m_mass;
+		float size = sizes[i];
+
+		scoped_lock lock1(mutexes[i]);
+
+		for (int p = i + 1; p < count; p++)
 		{
-			Particle& me = m_particles[i];
-			float const meMass = me.m_mass;
-			float size = me.GetSize();
+			Particle& other = m_particles[p];
 
-			scoped_lock lock1(mutexes[i]);
+			// Get vector between objects
+			VectorType objectsVector = other.GetPos() - me.GetPos();
+			float distance = objectsVector.Mag();
 
-			for (int p = i + 1; p < count; p++)
+			if (distance < size + sizes[p])
 			{
-				Particle& other = m_particles[p];
+				scoped_lock mergeLock(mergeMutex);
 
-				// Get vector between objects
-				VectorType objectsVector = other.GetPos() - me.GetPos();
-				float distance = objectsVector.Mag();
-
-				if (distance < size + other.GetSize())
+				//argDebugf("Merge %d,%d", i, p);
+				bool mergedIntoExistingSet = false;
+				for (auto& set : mergeSets)
 				{
-					scoped_lock mergeLock(mergeMutex);
-
-					//argDebugf("Merge %d,%d", i, p);
-					bool mergedIntoExistingSet = false;
-					for (auto& set : mergeSets)
+					bool foundI = set.find(i) != set.end();
+					bool foundP = set.find(p) != set.end();
+					if (foundI || foundP)
 					{
-						bool foundI = set.find(i) != set.end();
-						bool foundP = set.find(p) != set.end();
-						if (foundI || foundP)
-						{
-							set.insert(i);
-							set.insert(p);
-							mergedIntoExistingSet = true;
-							break;
-						}
+						set.insert(i);
+						set.insert(p);
+						mergedIntoExistingSet = true;
+						break;
 					}
-
-					if (!mergedIntoExistingSet)
-						mergeSets.push_back(unordered_set<int>({ i, p }));
-
-					continue;
 				}
 
-				// Calculate gravitational attraction
-				float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
+				if (!mergedIntoExistingSet)
+					mergeSets.push_back(unordered_set<int>({ i, p }));
 
-				// Apply force to velocity of particle (accel = force / mass)
-				objectsVector.Normalise();
-
-				VectorType objectsVectorOther = objectsVector;
-
-				float accelMe = force / meMass;
-				float accelOther = force / other.m_mass;
-
-				scoped_lock lock2(mutexes[p]);
-
-				objectsVector.SetLength(accelMe);
-				objectsVectorOther.SetLength(accelOther);
-
-				me.AddToVel(objectsVector);
-				other.AddToVel(-objectsVectorOther);
+				continue;
 			}
-		};
+
+			// Calculate gravitational attraction
+			float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
+
+			// Apply force to velocity of particle (accel = force / mass)
+			objectsVector.Normalise();
+
+			VectorType objectsVectorOther = objectsVector;
+
+			float accelMe = force / meMass;
+			float accelOther = force / other.m_mass;
+
+			scoped_lock lock2(mutexes[p]);
+
+			objectsVector.SetLength(accelMe);
+			objectsVectorOther.SetLength(accelOther);
+
+			me.AddToVel(objectsVector);
+			other.AddToVel(-objectsVectorOther);
+		}
+	};
 
 	vector<future<void>> futures;
 
@@ -594,11 +606,26 @@ void Universe::AdvanceGravityGridBasedMode()
 	// doing two-way interactions in the current system
 	//vector<mutex> mutexes(count);
 
+	const float sizeLogBase = m_sizeLogBase;
+
+	// Cache sizes to avoid having to call GetSize (with slow logarithm calls) multiple times per particle
+	// 10k particles, with only a single log, update = 87ms
+	// with two logs, update = 103ms
+	// with caching sizes, update = 95ms
+	// Unlike normal mode, we have to use a map (much slower than the vector) for some particles because we
+	// don't always know the particle index
+	vector<float> sizes(count);
+	unordered_map<Particle*,float> sizesMap;
+	for (size_t i = 0; i < m_particles.size(); ++i)
+	{
+		sizesMap[&m_particles[i]] = sizes[i] = m_particles[i].GetSize(sizeLogBase);
+	}
+
 	auto execute = [&](int i)
 	{
 		Particle& me = m_particles[i];
 		float const meMass = me.m_mass;
-		float size = me.GetSize();
+		float size = sizes[i];
 
 		//scoped_lock lock1(mutexes[i]);
 
@@ -643,7 +670,7 @@ void Universe::AdvanceGravityGridBasedMode()
 					float distance = objectsVector.Mag();
 
 #if 1
-					if (distance < size + other.GetSize())
+					if (distance < size + sizesMap[&other])
 					{
 						scoped_lock mergeLock(mergeMutex);
 						
@@ -767,6 +794,8 @@ void Universe::AdvanceGravityGridBasedMode()
 
 void Universe::Render()
 {
+	const float sizeLogBase = m_sizeLogBase;
+
 	// Render trails
 	if (m_showTrails)
 	{
@@ -774,7 +803,7 @@ void Universe::Render()
 		for( auto const& particle : m_trails )
 		{
 			if (iTrail++ % drawTrailInterval == 0)
-				RenderParticle(particle, true);
+				RenderParticle(particle, sizeLogBase, true);
 		}
 	}
 
@@ -801,7 +830,7 @@ void Universe::Render()
 
 	// Render each particle
 	for (auto const& p : m_particles)
-		RenderParticle(p);
+		RenderParticle(p, sizeLogBase);
 
 	// Display text stuff
 
@@ -876,11 +905,11 @@ void Universe::OnClose()
 		Save();
 }
 
-void Universe::RenderParticle(Particle const & _particle, bool _isTrail)
+void Universe::RenderParticle(Particle const & _particle, float _sizeLogBase, bool _isTrail)
 {
 	float viewportHeight = m_viewportWidth / m_worldAspectRatio;
 
-	float size = _particle.GetSize() * (m_scW / m_viewportWidth);
+	float size = _particle.GetSize(_sizeLogBase) * (m_scW / m_viewportWidth);
 
 	VectorType pos = _particle.GetPos();
 

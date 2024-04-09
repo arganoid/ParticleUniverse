@@ -55,8 +55,8 @@ struct Particle
 	__forceinline float GetMass() const { return m_mass; }
 	__forceinline void SetMass(float _mass) { m_mass = _mass; }
 
-	__forceinline float GetSize() const { return log(m_mass) * 2.5f; }
-	//__forceinline float GetSize() const { return (log(m_mass) / log(2.71828)) * 2.5f; }
+	//__forceinline float GetSize(float logBase) const { return log(m_mass) * 2.5f; }
+	__forceinline float GetSize(float logBase) const { return (log(m_mass) / log(logBase)) * 2.5f; }
 
 	void operator = (Particle const& _param)
 	{
@@ -86,6 +86,7 @@ private:
 	// Config options
 	ConfigOptionWrapper<size_t> m_maxTrails;
 	ConfigOptionWrapper<int> m_createTrailInterval;	// 1 = add to trails every frame, etc
+	ConfigOptionWrapper<float> m_sizeLogBase;
 
 	int m_createTrailIntervalCounter;
 	bool m_showTrails;
@@ -140,7 +141,7 @@ private:
 	void AdvanceGravityNormalMode();
 	void AdvanceGravityGridBasedMode();
 
-	void RenderParticle(Particle const & _particle, bool _isTrail = false);
+	void RenderParticle(Particle const & _particle, float _sizeLogBase, bool _isTrail = false);
 
 	void CreateUniverse(int _id);
 
