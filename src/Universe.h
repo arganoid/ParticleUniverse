@@ -3,8 +3,8 @@
 #include <deque>
 #include <vector>
 
-#include "ARGCoreSrc\ARGUtils.h"
-#include "ARGCoreSrc\Vector2.h"
+#include "ARGCore\ARGUtils.h"
+#include "ARGCore\Vector2.h"
 
 #include <allegro5/allegro.h>
 

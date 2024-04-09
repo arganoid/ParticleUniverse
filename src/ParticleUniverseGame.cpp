@@ -1,6 +1,6 @@
 #include "ParticleUniverseGame.h"
 
-#include "ARGCoreSrc\ARGUtils.h"
+#include "ARGCore\ARGUtils.h"
 
 #include <allegro5/allegro.h>
 

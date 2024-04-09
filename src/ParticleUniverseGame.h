@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "ARGCoreSrc\GameBase.h"
+#include "ARGCore\GameBase.h"
 
 #include "Universe.h"
 

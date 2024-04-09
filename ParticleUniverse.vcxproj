@@ -147,31 +147,31 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ARGCoreSrc\ARGMath.cpp" />
-    <ClCompile Include="ARGCoreSrc\ARGUtils.cpp" />
-    <ClCompile Include="ARGCoreSrc\GameBase.cpp" />
-    <ClCompile Include="ARGCoreSrc\Keyboard.cpp" />
-    <ClCompile Include="ARGCoreSrc\TimingManager.cpp" />
-    <ClCompile Include="ARGCoreSrc\Vector2.cpp" />
-    <ClCompile Include="Main.cpp" />
-    <ClCompile Include="ParticleUniverseGame.cpp" />
-    <ClCompile Include="Universe.cpp" />
+    <ClCompile Include="src\ARGCore\ARGMath.cpp" />
+    <ClCompile Include="src\ARGCore\ARGUtils.cpp" />
+    <ClCompile Include="src\ARGCore\GameBase.cpp" />
+    <ClCompile Include="src\ARGCore\Keyboard.cpp" />
+    <ClCompile Include="src\ARGCore\TimingManager.cpp" />
+    <ClCompile Include="src\ARGCore\Vector2.cpp" />
+    <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\ParticleUniverseGame.cpp" />
+    <ClCompile Include="src\Universe.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="config.cfg" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ARGCoreSrc\ARGMath.h" />
-    <ClInclude Include="ARGCoreSrc\ARGUtils.h" />
-    <ClInclude Include="ARGCoreSrc\GameBase.h" />
-    <ClInclude Include="ARGCoreSrc\Keyboard.h" />
-    <ClInclude Include="ARGCoreSrc\TimingManager.h" />
-    <ClInclude Include="ARGCoreSrc\Vector2.h" />
-    <ClInclude Include="ParticleUniverseGame.h" />
-    <ClInclude Include="Universe.h" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
+    <ClInclude Include="src\ARGCore\ARGMath.h" />
+    <ClInclude Include="src\ARGCore\ARGUtils.h" />
+    <ClInclude Include="src\ARGCore\GameBase.h" />
+    <ClInclude Include="src\ARGCore\Keyboard.h" />
+    <ClInclude Include="src\ARGCore\TimingManager.h" />
+    <ClInclude Include="src\ARGCore\Vector2.h" />
+    <ClInclude Include="src\ParticleUniverseGame.h" />
+    <ClInclude Include="src\Universe.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

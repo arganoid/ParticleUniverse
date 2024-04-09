@@ -8,10 +8,10 @@
 
 #include "ParticleUniverseGame.h"
 
-#include "ARGCoreSrc\TimingManager.h"
-#include "ARGCoreSrc\ARGUtils.h"
-#include "ARGCoreSrc\ARGMath.h"
-#include "ARGCoreSrc\Keyboard.h"
+#include "ARGCore\TimingManager.h"
+#include "ARGCore\ARGUtils.h"
+#include "ARGCore\ARGMath.h"
+#include "ARGCore\Keyboard.h"
 
 #include <cmath>
 
