@@ -47,13 +47,13 @@ auto asyncPolicy = std::launch::deferred;
 #endif
 
 // todo need to be able to adjust while running to find best balance, too many squares makes it run slower
-const int gridRowsCols = 20;
+const int defaultGridRowsCols = 20;
 
 // High = faster but less accurate, if it's equal or close to gridRowsCols there's no benefit in the grid based 
-// approach (in fact it will be worse than the original version)
-const int highAccuracyGridDistance = 6;
+// approach (in fact it will be worse than normal mode)
+const int defaultHighAccuracyGridDistance = 6;
 
-const int DEFAULT_TRAIL_INTERVAL = 4;
+const int defaultTrailInterval = 4;
 const double DEFAULT_G = 6.672 * 0.00001;	// some preset universes such as spiral use different G values
 
 const int drawTrailInterval = 1; // 4;
@@ -142,9 +142,11 @@ Universe::Universe():
 	m_currentMenuPage(MenuPage::Default),
 	m_particles(500),
 	m_showTrails(false),
-	m_createTrailInterval("trails", "createTrailInterval", "Create trail interval", DEFAULT_TRAIL_INTERVAL),
+	m_createTrailInterval("trails", "createTrailInterval", "Create trail interval", defaultTrailInterval),
 	m_maxTrails("trails", "maxTrails", "Max trails", 100000),
 	m_sizeLogBase("particles", "sizeLogBase", "Size log base", 2.7),
+	m_gridRowsCols("grid", "gridRowsCols", "Grid rows and columns", defaultGridRowsCols),
+	m_highAccuracyGridDistance("grid", "highAccuracyGridDistance", "High accuracy grid distance", defaultHighAccuracyGridDistance),
 	m_createTrailIntervalCounter(0),
 	m_freeze(false),
 	m_userGeneratedParticleMass(1e5f),
@@ -159,6 +161,8 @@ Universe::Universe():
 		m_createTrailInterval.set(m_createTrailInterval);
 		m_maxTrails.set(m_maxTrails);
 		m_sizeLogBase.set(m_sizeLogBase);
+		m_gridRowsCols.set(m_gridRowsCols);
+		m_highAccuracyGridDistance.set(m_highAccuracyGridDistance);
 	}
 
 	CreateUniverse(4);
@@ -374,42 +378,6 @@ void Universe::Advance(float _deltaTime)
 	}
 }
 
-using ParticleList = vector<Particle*>;
-
-
-template<typename T>
-void GetGridExtents(T const& particles, double& minX, double& maxX, double& minY, double& maxY, double& gridW, double& gridH, double& stepX, double& stepY)
-{
-	const double minGridSize = 1000.f;
-
-	minX = minY = numeric_limits<double>::infinity();
-	maxX = maxY = -numeric_limits<double>::infinity();
-	for (auto const& p : particles)
-	{
-		minX = min(minX, p.GetPos().x);
-		minY = min(minY, p.GetPos().y);
-		maxX = max(maxX, p.GetPos().x);
-		maxY = max(maxY, p.GetPos().y);
-	}
-	gridW = maxX - minX;
-	gridH = maxY - minY;
-
-	// Enforce min grid size, amongst other benefits the simulation may go weird with very tiny grids
-	if (gridW < minGridSize)
-	{
-		gridW = minGridSize;
-		maxX = minX + minGridSize;
-	}
-	if (gridH < minGridSize)
-	{
-		gridH = minGridSize;
-		maxY = minY + minGridSize;
-	}
-
-	stepX = gridW / (float)gridRowsCols;
-	stepY = gridH / (float)gridRowsCols;
-}
-
 void Universe::AdvanceGravityNormalMode()
 {
 	// Check every other particle and for each one, adjust my velocity
@@ -559,7 +527,8 @@ void Universe::AdvanceGravityGridBasedMode()
 
 	mutex mergeMutex;
 
-	int count = m_particles.size();
+	const int count = m_particles.size();
+	const int gridRowsCols = m_gridRowsCols;
 
 	// Get grid extents
 	double minX, maxX, minY, maxY, gridW, gridH, stepX, stepY;
@@ -568,13 +537,13 @@ void Universe::AdvanceGravityGridBasedMode()
 	auto particleGridPos = [&](Particle const& p)
 	{
 		// Count a particle off the bottom/right as being in the bottom/right square
-		return pair<int, int>{ min(static_cast<int>( (p.m_pos.x - minX) / stepX), gridRowsCols-1),
-							   min(static_cast<int>( (p.m_pos.y - minY) / stepY), gridRowsCols-1) };
+		return pair<int, int>{ min(static_cast<int>( (p.m_pos.x - minX) / stepX), gridRowsCols -1),
+							   min(static_cast<int>( (p.m_pos.y - minY) / stepY), gridRowsCols -1) };
 	};
 
 	struct GridSquare
 	{
-		ParticleList particles;
+		vector<Particle*> particles;
 		VectorType centre;
 		float mass = 0;
 	};
@@ -656,7 +625,7 @@ void Universe::AdvanceGravityGridBasedMode()
 
 			// If other grid square is within this many grid squares, go through particles individually
 			int gridDistance = abs(myGX - otherGX) + abs(myGY - otherGY);
-			if (gridDistance <= highAccuracyGridDistance)
+			if (gridDistance <= defaultHighAccuracyGridDistance)
 			{
 				for (size_t p = 0; p < otherGridSquare.particles.size(); p++)
 				{
@@ -810,6 +779,7 @@ void Universe::Render()
 	// Grid lines
 	if (m_useGridBasedMode)
 	{
+		const int gridRowsCols = m_gridRowsCols;
 		ALLEGRO_COLOR gridCol = al_map_rgb(32, 32, 32);
 		double minX, maxX, minY, maxY, gridW, gridH, stepX, stepY;
 		GetGridExtents(m_particles, minX, maxX, minY, maxY, gridW, gridH, stepX, stepY);

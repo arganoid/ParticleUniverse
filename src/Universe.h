@@ -2,6 +2,7 @@
 
 #include <deque>
 #include <vector>
+#include <limits>
 
 #include "ARGCore\ARGUtils.h"
 #include "ARGCore\Vector2.h"
@@ -87,6 +88,8 @@ private:
 	ConfigOptionWrapper<size_t> m_maxTrails;
 	ConfigOptionWrapper<int> m_createTrailInterval;	// 1 = add to trails every frame, etc
 	ConfigOptionWrapper<float> m_sizeLogBase;
+	ConfigOptionWrapper<int> m_gridRowsCols;
+	ConfigOptionWrapper<int> m_highAccuracyGridDistance;
 
 	int m_createTrailIntervalCounter;
 	bool m_showTrails;
@@ -154,4 +157,38 @@ private:
 	VectorType ScreenToWorld(const VectorType& _screen);
 
 	decltype(m_particles)::iterator FindNearest(VectorType const& _pos);
+
+	template<typename T>
+	void GetGridExtents(T const& particles, double& minX, double& maxX, double& minY, double& maxY, double& gridW, double& gridH, double& stepX, double& stepY)
+	{
+		const double minGridSize = 5000.f;
+
+		minX = minY = std::numeric_limits<double>::infinity();
+		maxX = maxY = -std::numeric_limits<double>::infinity();
+		for (auto const& p : particles)
+		{
+			minX = std::min(minX, p.GetPos().x);
+			minY = std::min(minY, p.GetPos().y);
+			maxX = std::max(maxX, p.GetPos().x);
+			maxY = std::max(maxY, p.GetPos().y);
+		}
+		gridW = maxX - minX;
+		gridH = maxY - minY;
+
+		// Enforce min grid size, amongst other benefits the simulation may go weird with very tiny grids
+		if (gridW < minGridSize)
+		{
+			gridW = minGridSize;
+			maxX = minX + minGridSize;
+		}
+		if (gridH < minGridSize)
+		{
+			gridH = minGridSize;
+			maxY = minY + minGridSize;
+		}
+
+		float rowsCols = (float)m_gridRowsCols;
+		stepX = gridW / rowsCols;
+		stepY = gridH / rowsCols;
+	}
 };
