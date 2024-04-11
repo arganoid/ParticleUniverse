@@ -84,9 +84,10 @@ public:
 		return get();
 	}
 
-	T& operator=(T const& value)
+	T& operator=(T const& newValue)
 	{
-		set(value);
+		set(newValue);
+		return value.value();
 	}
 
 private:

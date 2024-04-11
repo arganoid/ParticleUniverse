@@ -48,6 +48,15 @@
     <ClCompile Include="src\Universe.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\ARGCore\Sprites.cpp">
+      <Filter>Source Files\ARGCore</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ARGCore\PSectorMenu.cpp">
+      <Filter>Source Files\ARGCore</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ARGCore\Fonts.cpp">
+      <Filter>Source Files\ARGCore</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="config.cfg">
@@ -83,6 +92,21 @@
       <Filter>Header Files\ARGCore</Filter>
     </ClInclude>
     <ClInclude Include="src\ARGCore\Config.h">
+      <Filter>Header Files\ARGCore</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ARGCore\dialog.h">
+      <Filter>Header Files\ARGCore</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ARGCore\PSectorMenu.h">
+      <Filter>Header Files\ARGCore</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ARGCore\Sprites.h">
+      <Filter>Header Files\ARGCore</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ARGCore\rgb.h">
+      <Filter>Header Files\ARGCore</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ARGCore\Fonts.h">
       <Filter>Header Files\ARGCore</Filter>
     </ClInclude>
   </ItemGroup>

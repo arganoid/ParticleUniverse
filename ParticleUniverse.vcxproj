@@ -149,8 +149,11 @@
   <ItemGroup>
     <ClCompile Include="src\ARGCore\ARGMath.cpp" />
     <ClCompile Include="src\ARGCore\ARGUtils.cpp" />
+    <ClCompile Include="src\ARGCore\Fonts.cpp" />
     <ClCompile Include="src\ARGCore\GameBase.cpp" />
     <ClCompile Include="src\ARGCore\Keyboard.cpp" />
+    <ClCompile Include="src\ARGCore\PSectorMenu.cpp" />
+    <ClCompile Include="src\ARGCore\Sprites.cpp" />
     <ClCompile Include="src\ARGCore\TimingManager.cpp" />
     <ClCompile Include="src\ARGCore\Vector2.cpp" />
     <ClCompile Include="src\Main.cpp" />
@@ -167,8 +170,13 @@
     <ClInclude Include="src\ARGCore\ARGMath.h" />
     <ClInclude Include="src\ARGCore\ARGUtils.h" />
     <ClInclude Include="src\ARGCore\Config.h" />
+    <ClInclude Include="src\ARGCore\dialog.h" />
+    <ClInclude Include="src\ARGCore\Fonts.h" />
     <ClInclude Include="src\ARGCore\GameBase.h" />
     <ClInclude Include="src\ARGCore\Keyboard.h" />
+    <ClInclude Include="src\ARGCore\PSectorMenu.h" />
+    <ClInclude Include="src\ARGCore\rgb.h" />
+    <ClInclude Include="src\ARGCore\Sprites.h" />
     <ClInclude Include="src\ARGCore\TimingManager.h" />
     <ClInclude Include="src\ARGCore\Vector2.h" />
     <ClInclude Include="src\ParticleUniverseGame.h" />
