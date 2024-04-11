@@ -12,6 +12,7 @@
 #include "ARGCore\ARGUtils.h"
 #include "ARGCore\ARGMath.h"
 #include "ARGCore\Keyboard.h"
+#include "ARGCore\Fonts.h"
 
 #include <cmath>
 
@@ -22,11 +23,11 @@
 #include <iterator>
 #include <random>
 #include <future>
+#include <memory>
 #include <mutex>
 #include <fstream>
 #include <iomanip>
 #include <filesystem>
-#include <limits>
 #include <utility>
 
 #include <allegro5/allegro.h>
@@ -128,7 +129,6 @@ inline std::istream& operator>> (std::istream& is, Particle& p)
 	return is;
 }
 
-
 Universe::Universe():
 	m_gravitationalConstant(DEFAULT_G),
 	m_defaultViewportWidth(800.0f),
@@ -146,11 +146,12 @@ Universe::Universe():
 	m_maxTrails("trails", "maxTrails", "Max trails", 100000),
 	m_sizeLogBase("particles", "sizeLogBase", "Size log base", 2.7),
 	m_gridRowsCols("grid", "gridRowsCols", "Grid rows and columns", defaultGridRowsCols),
+	m_numSpiralParticles("spiral", "numSpiralParticles", "Spiral particles to generate", spiralNumParticlesDefault),
 	m_highAccuracyGridDistance("grid", "highAccuracyGridDistance", "High accuracy grid distance", defaultHighAccuracyGridDistance),
 	m_createTrailIntervalCounter(0),
 	m_freeze(false),
 	m_userGeneratedParticleMass(1e5f),
-	m_numSpiralParticles(spiralNumParticlesDefault)
+	m_showConfigMenu(false)
 {
 	Config::configFilename = "ParticleUniverse.cfg";
 	Config::config = al_load_config_file(Config::configFilename.c_str());
@@ -163,7 +164,12 @@ Universe::Universe():
 		m_sizeLogBase.set(m_sizeLogBase);
 		m_gridRowsCols.set(m_gridRowsCols);
 		m_highAccuracyGridDistance.set(m_highAccuracyGridDistance);
+		m_numSpiralParticles.set(m_numSpiralParticles);
 	}
+
+	Fonts::load();
+
+	m_configMenu = CreateConfigMenu();
 
 	CreateUniverse(4);
 
@@ -195,7 +201,7 @@ void Universe::AddParticle(VectorType _pos,	VectorType _vel, float _mass,
 
 void Universe::AddTrailParticle(VectorType _pos, float _mass)
 {
-	if (m_trails.size() >= m_maxTrails)
+	if (m_trails.size() >= (size_t)m_maxTrails)
 		m_trails.pop_front();
 
 	//m_trails.push_back( Particle(_pos, _mass, 128, 128, 128) );
@@ -282,87 +288,90 @@ void Universe::Advance(float _deltaTime)
 	}
 
 	// Advance input
-	// mouse
+	// Disable most controls when config menu is open
+	if (!m_showConfigMenu)
 	{
-		static ALLEGRO_MOUSE_STATE lastMouseState;
-		ALLEGRO_MOUSE_STATE mouseState;
-		al_get_mouse_state(&mouseState);
-
-		if (al_mouse_button_down(&mouseState, 1))// && !al_mouse_button_down(&lastMouseState, 1))
+		// mouse
 		{
-			// Add random new particle
-			float velx = 0.f; // (float)(getrandom(-100, 100)) / 100.0f;
-			float vely = 0.f; // (float)(getrandom(-100, 100)) / 100.0f;
+			static ALLEGRO_MOUSE_STATE lastMouseState;
+			ALLEGRO_MOUSE_STATE mouseState;
+			al_get_mouse_state(&mouseState);
 
-			AddParticle(
-				//VectorType(getrandom(0, m_defaultViewportWidth), getrandom(0, m_defaultViewportWidth*0.75f)),
-				ScreenToWorld(VectorType(mouseState.x, mouseState.y)),
-				VectorType(velx, vely),
-				m_userGeneratedParticleMass);
-		}
-
-#if 0
-		if (al_mouse_button_down(&mouseState, 3))
-		{
-			auto pos = ScreenToWorld(VectorType(mouseState.x, mouseState.y));
-			m_cameraFollow = FindNearest(pos);
-		}
-#endif
-
-		if (al_mouse_button_down(&mouseState, 2) && !m_particles.empty())
-		{
-			VectorType mouseScreenPos = VectorType(mouseState.x, mouseState.y);
-			VectorType mouseWorldPos = ScreenToWorld(mouseScreenPos);
-			auto nearest = FindNearest(mouseWorldPos);
-			if (nearest != m_particles.end())
+			if (al_mouse_button_down(&mouseState, 1))// && !al_mouse_button_down(&lastMouseState, 1))
 			{
-				// Only delete if it's within a certain distance from the mouse in screen space
-				auto particleScreenPos = WorldToScreen(nearest->GetPos());
-				float dist = (mouseScreenPos - particleScreenPos).Mag();
-				if (dist < rightClickDeleteMaxPixelDistance)
-					m_particles.erase(nearest);
+				// Add random new particle
+				float velx = 0.f; // (float)(getrandom(-100, 100)) / 100.0f;
+				float vely = 0.f; // (float)(getrandom(-100, 100)) / 100.0f;
+
+				AddParticle(
+					//VectorType(getrandom(0, m_defaultViewportWidth), getrandom(0, m_defaultViewportWidth*0.75f)),
+					ScreenToWorld(VectorType(mouseState.x, mouseState.y)),
+					VectorType(velx, vely),
+					m_userGeneratedParticleMass);
 			}
-		}
 
-		lastMouseState = mouseState;
-	}
-	
-	// Zoom out
-	if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_MINUS) || Keyboard::keyCurrentlyDown(ALLEGRO_KEY_PAD_MINUS))
-	{
-		float change = m_viewportWidth * 0.05f * (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_LSHIFT) ? 1.5f : 1.f);
-		m_viewportWidth += change;
-	}
-
-	// Zoom in
-	if ((Keyboard::keyCurrentlyDown(ALLEGRO_KEY_EQUALS) || Keyboard::keyCurrentlyDown(ALLEGRO_KEY_PAD_PLUS)) && m_viewportWidth > 1.0f)
-	{
-		float change = m_viewportWidth * 0.05f * (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_LSHIFT) ? 1.5f : 1.f);
-		m_viewportWidth -= change;
-	}
-
-	// Camera
-	{
-		const float cameraSpeed = 0.75f;
-		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_UP)) { m_cameraPos.y -= m_viewportWidth * 0.75f * _deltaTime; }
-		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_DOWN)) { m_cameraPos.y += m_viewportWidth * 0.75f * _deltaTime; }
-		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_LEFT)) { m_cameraPos.x -= m_viewportWidth * 0.75f * _deltaTime; }
-		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_RIGHT)) { m_cameraPos.x += m_viewportWidth * 0.75f * _deltaTime; }
 #if 0
-		if (m_cameraFollow != m_particles.end())
-		{
-			m_cameraPos = m_cameraFollow->m_pos;
-		}
+			if (al_mouse_button_down(&mouseState, 3))
+			{
+				auto pos = ScreenToWorld(VectorType(mouseState.x, mouseState.y));
+				m_cameraFollow = FindNearest(pos);
+			}
 #endif
+
+			if (al_mouse_button_down(&mouseState, 2) && !m_particles.empty())
+			{
+				VectorType mouseScreenPos = VectorType(mouseState.x, mouseState.y);
+				VectorType mouseWorldPos = ScreenToWorld(mouseScreenPos);
+				auto nearest = FindNearest(mouseWorldPos);
+				if (nearest != m_particles.end())
+				{
+					// Only delete if it's within a certain distance from the mouse in screen space
+					auto particleScreenPos = WorldToScreen(nearest->GetPos());
+					float dist = (mouseScreenPos - particleScreenPos).Mag();
+					if (dist < rightClickDeleteMaxPixelDistance)
+						m_particles.erase(nearest);
+				}
+			}
+
+			lastMouseState = mouseState;
+		}
+
+		// Zoom out
+		if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_MINUS) || Keyboard::keyCurrentlyDown(ALLEGRO_KEY_PAD_MINUS))
+		{
+			float change = m_viewportWidth * 0.05f * (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_LSHIFT) ? 1.5f : 1.f);
+			m_viewportWidth += change;
+		}
+
+		// Zoom in
+		if ((Keyboard::keyCurrentlyDown(ALLEGRO_KEY_EQUALS) || Keyboard::keyCurrentlyDown(ALLEGRO_KEY_PAD_PLUS)) && m_viewportWidth > 1.0f)
+		{
+			float change = m_viewportWidth * 0.05f * (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_LSHIFT) ? 1.5f : 1.f);
+			m_viewportWidth -= change;
+		}
+
+		// Camera
+		{
+			const float cameraSpeed = 0.75f;
+			if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_UP)) { m_cameraPos.y -= m_viewportWidth * 0.75f * _deltaTime; }
+			if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_DOWN)) { m_cameraPos.y += m_viewportWidth * 0.75f * _deltaTime; }
+			if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_LEFT)) { m_cameraPos.x -= m_viewportWidth * 0.75f * _deltaTime; }
+			if (Keyboard::keyCurrentlyDown(ALLEGRO_KEY_RIGHT)) { m_cameraPos.x += m_viewportWidth * 0.75f * _deltaTime; }
+#if 0
+			if (m_cameraFollow != m_particles.end())
+			{
+				m_cameraPos = m_cameraFollow->m_pos;
+			}
+#endif
+		}
 	}
+
+	if (Keyboard::keyPressed(ALLEGRO_KEY_TAB)) { m_showConfigMenu = !m_showConfigMenu; }
 
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F1)) { m_debugParticleInfo = !m_debugParticleInfo; }
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F2)) { m_freeze = !m_freeze; }
 	if (Keyboard::keyPressed(ALLEGRO_KEY_F3)) { m_showTrails = !m_showTrails; }
 	
-	if (Keyboard::keyPressed(ALLEGRO_KEY_F4)) { m_numSpiralParticles -= 500; }
-	if (Keyboard::keyPressed(ALLEGRO_KEY_F5)) { m_numSpiralParticles += 500; }
-
 	if (Keyboard::keyPressed(ALLEGRO_KEY_G)) { m_useGridBasedMode = !m_useGridBasedMode; }
 
 	AdvanceMenu();
@@ -838,8 +847,7 @@ void Universe::Render()
 								stringFormat("Trail particles: %d", m_trails.size()),
 								stringFormat("Zoom: %.2f (-/+)", 100.f * m_viewportWidth / m_defaultViewportWidth),
 								stringFormat("Camera: %.1f, %.1f", m_cameraPos.x, m_cameraPos.y),
-								stringFormat("G: %e", m_gravitationalConstant),
-								stringFormat("Spiral particles to generate: %d", m_numSpiralParticles)	};
+								stringFormat("G: %e", m_gravitationalConstant) };
 	float y = 100;
 	for (auto const& str : entries)
 	{
@@ -848,15 +856,15 @@ void Universe::Render()
 	}
 
 	// bottom right
-	entries = { "Left mouse: Add particles",
-				"Right mouse: Remove particles",
-				"+/-: Zoom", "Cursor keys: Move",
+	entries = { "TAB: Show/hide config menu",
+				"+/-: Zoom",
+				"Cursor keys: Move",
+				"Left/right mouse: Add/remove particles",
 				"G: Toggle grid-based mode",
 				"Z: Fast forward",
 				"F1: Show/hide particle info",
 				"F2: Freeze",
 				"F3: Show/hide trails",
-				"F4/F5: Change spiral particles to generate",
 				"ESC: Quit" };
 	y = al_get_display_height(g_display) - g_fontSize * entries.size();
 
@@ -865,6 +873,10 @@ void Universe::Render()
 		al_draw_textf(g_font, g_colWhite, m_scW, y, ALLEGRO_ALIGN_RIGHT, str.c_str());
 		y += g_fontSize;
 	}
+
+	// Show config menu
+	if (m_showConfigMenu)
+		m_configMenu->render();
 
 	RenderMenu();
 }
@@ -1246,6 +1258,10 @@ void Universe::Load()
 
 void Universe::AdvanceMenu()
 {
+	// We now have two menus, old and new!
+	if (m_showConfigMenu)
+		m_configMenu->update(al_get_display_height(g_display));
+
 	switch (m_currentMenuPage)
 	{
 		case MenuPage::Default:
@@ -1351,4 +1367,40 @@ decltype(Universe::m_particles)::iterator Universe::FindNearest(VectorType const
 		}
 	}
 	return bestP;
+}
+
+std::unique_ptr<PSectorMenu> Universe::CreateConfigMenu()
+{
+	PSectorMenuLayoutOptions menuLayoutOptions =
+	{
+		g_font,
+		300,	// yStart
+		35,		// yInc
+		32		// buttonHeight
+	};
+	auto menu = make_unique<PSectorMenu>(menuLayoutOptions);
+	float headingX = 100;
+	float textX = 120;
+
+	menu->addHeading(headingX, "Config menu");
+	menu->addHeading(headingX, "Note: currently these options are always saved to the config file when changed!");
+	menu->addHeading(headingX, "That's not ideal, I may add a button to save them (or certain groups of them) instead.");
+	menu->addHeading(headingX, "It would also be nice to have a reset to defaults button. And make this menu less frame rate dependent.");
+	menu->addGap();
+
+	menu->addHeading(headingX, "Grid");
+	menu->add(textX, m_gridRowsCols, 1, 100);
+	menu->add(textX, m_highAccuracyGridDistance, 0, 100);
+
+	menu->addHeading(headingX, "Spiral");
+	menu->add(textX, m_numSpiralParticles, 0, 100000, 250);
+
+	menu->addHeading(headingX, "Trails");
+	menu->add(textX, m_createTrailInterval, 1, 1000);
+	menu->add(textX, m_maxTrails, 0, 500000, 1000);
+	menu->addAction(textX, "Clear trails", [&] { m_trails.clear(); });
+
+	// todo add particle size options
+
+	return menu;
 }

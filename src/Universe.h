@@ -4,15 +4,14 @@
 #include <vector>
 #include <limits>
 
-#include "ARGCore\ARGUtils.h"
-#include "ARGCore\Vector2.h"
-#include "ARGCore\Config.h"
+#include "ARGCore/ARGUtils.h"
+#include "ARGCore/Vector2.h"
+#include "ARGCore/Config.h"
+#include "ARGCore/PSectorMenu.h"
 
 #include <allegro5/allegro.h>
 
 using VectorType = Vector2Base<double>;
-
-struct ALLEGRO_VERTEX;
 
 struct Particle
 {
@@ -85,11 +84,16 @@ private:
 	std::deque<Particle> m_trails;
 
 	// Config options
-	ConfigOptionWrapper<size_t> m_maxTrails;
+	ConfigOptionWrapper<int> m_maxTrails;
 	ConfigOptionWrapper<int> m_createTrailInterval;	// 1 = add to trails every frame, etc
 	ConfigOptionWrapper<float> m_sizeLogBase;
 	ConfigOptionWrapper<int> m_gridRowsCols;
 	ConfigOptionWrapper<int> m_highAccuracyGridDistance;
+	ConfigOptionWrapper<int> m_numSpiralParticles;
+
+	std::unique_ptr<PSectorMenu> m_configMenu;
+
+	bool m_showConfigMenu;
 
 	int m_createTrailIntervalCounter;
 	bool m_showTrails;
@@ -113,7 +117,6 @@ private:
 	bool m_freeze;
 
 	double m_userGeneratedParticleMass;
-	int m_numSpiralParticles;
 
 	/**************/
 	/* Menu stuff */
@@ -191,4 +194,6 @@ private:
 		stepX = gridW / rowsCols;
 		stepY = gridH / rowsCols;
 	}
+
+	std::unique_ptr<PSectorMenu> CreateConfigMenu();
 };
