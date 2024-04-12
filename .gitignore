@@ -1,11 +1,11 @@
 /.vs
 /Debug
 /Release
-*.exe
-*.log
 /old
 /packages
+/Build
+*.exe
+*.log
+*.vcxproj.user
 save.txt
-Build
-ParticleUniverse.vcxproj.user
 butler.txt
