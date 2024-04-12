@@ -129,6 +129,8 @@ inline std::istream& operator>> (std::istream& is, Particle& p)
 	return is;
 }
 
+const bool autoSaveConfigOptions = false;
+
 Universe::Universe():
 	m_gravitationalConstant(DEFAULT_G),
 	m_defaultViewportWidth(800.0f),
@@ -142,29 +144,35 @@ Universe::Universe():
 	m_currentMenuPage(MenuPage::Default),
 	m_particles(500),
 	m_showTrails(false),
-	m_createTrailInterval("trails", "createTrailInterval", "Create trail interval", defaultTrailInterval),
-	m_maxTrails("trails", "maxTrails", "Max trails", 100000),
-	m_sizeLogBase("particles", "sizeLogBase", "Size log base", 2.7),
-	m_gridRowsCols("grid", "gridRowsCols", "Grid rows and columns", defaultGridRowsCols),
-	m_numSpiralParticles("spiral", "numSpiralParticles", "Spiral particles to generate", spiralNumParticlesDefault),
-	m_highAccuracyGridDistance("grid", "highAccuracyGridDistance", "High accuracy grid distance", defaultHighAccuracyGridDistance),
+	m_createTrailInterval("trails", "createTrailInterval", "Create trail interval", defaultTrailInterval, autoSaveConfigOptions),
+	m_maxTrails("trails", "maxTrails", "Max trails", 100000, autoSaveConfigOptions),
+	m_sizeLogBase("particles", "sizeLogBase", "Size log base", 2.7, autoSaveConfigOptions),
+	m_gridRowsCols("grid", "gridRowsCols", "Grid rows and columns", defaultGridRowsCols, autoSaveConfigOptions),
+	m_numSpiralParticles("spiral", "numSpiralParticles", "Spiral particles to generate", spiralNumParticlesDefault, autoSaveConfigOptions),
+	m_highAccuracyGridDistance("grid", "highAccuracyGridDistance", "High accuracy grid distance", defaultHighAccuracyGridDistance, autoSaveConfigOptions),
 	m_createTrailIntervalCounter(0),
 	m_freeze(false),
 	m_userGeneratedParticleMass(1e5f),
 	m_showConfigMenu(false)
 {
+	m_allOptions = {
+		&m_gridRowsCols,
+		&m_highAccuracyGridDistance,
+		&m_numSpiralParticles,
+		&m_createTrailInterval,
+		&m_maxTrails,
+		&m_sizeLogBase
+	};
+
+
 	Config::configFilename = "ParticleUniverse.cfg";
 	Config::config = al_load_config_file(Config::configFilename.c_str());
 	if (!Config::config)
 	{
 		// create a config file with all config option wrapper default values (todo put these in a list or something)
 		Config::config = al_create_config();
-		m_createTrailInterval.set(m_createTrailInterval);
-		m_maxTrails.set(m_maxTrails);
-		m_sizeLogBase.set(m_sizeLogBase);
-		m_gridRowsCols.set(m_gridRowsCols);
-		m_highAccuracyGridDistance.set(m_highAccuracyGridDistance);
-		m_numSpiralParticles.set(m_numSpiralParticles);
+		for (auto& option : m_allOptions)
+			option->save();
 	}
 
 	Fonts::load();
@@ -1379,15 +1387,18 @@ std::unique_ptr<PSectorMenu> Universe::CreateConfigMenu()
 		32		// buttonHeight
 	};
 	auto menu = make_unique<PSectorMenu>(menuLayoutOptions);
-	float headingX = 100;
-	float textX = 120;
+	int headingX = 100;
+	int textX = 120;
 
 	menu->addHeading(headingX, "Config menu");
-	menu->addHeading(headingX, "Note: currently these options are always saved to the config file when changed!");
-	menu->addHeading(headingX, "That's not ideal, I may add a button to save them (or certain groups of them) instead.");
-	menu->addHeading(headingX, "It would also be nice to have a reset to defaults button. And make this menu less frame rate dependent.");
+	menu->addHeading(headingX, "todo: make this menu less frame rate dependent.");
 	menu->addGap();
 
+	menu->addHeading(headingX, "Save/reset");
+	menu->addAction(textX, "Save all options to config file", [&] { for (auto& option : m_allOptions) option->save(); });
+	//menu->addAction(textX, "Load all options to config file (NOT YET IMPLEMENTED)", [&] {  });
+	menu->addAction(textX, "Reset all to defaults", [&] { for (auto& option : m_allOptions) option->resetToDefault(); });
+	
 	menu->addHeading(headingX, "Grid");
 	menu->add(textX, m_gridRowsCols, 1, 100);
 	menu->add(textX, m_highAccuracyGridDistance, 0, 100);
@@ -1395,12 +1406,13 @@ std::unique_ptr<PSectorMenu> Universe::CreateConfigMenu()
 	menu->addHeading(headingX, "Spiral");
 	menu->add(textX, m_numSpiralParticles, 0, 100000, 250);
 
+	menu->addHeading(headingX, "Particles");
+	menu->add(textX, m_sizeLogBase, 1.05f, 10.f, 0.05f);
+
 	menu->addHeading(headingX, "Trails");
 	menu->add(textX, m_createTrailInterval, 1, 1000);
 	menu->add(textX, m_maxTrails, 0, 500000, 1000);
 	menu->addAction(textX, "Clear trails", [&] { m_trails.clear(); });
-
-	// todo add particle size options
 
 	return menu;
 }

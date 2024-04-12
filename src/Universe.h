@@ -93,6 +93,8 @@ private:
 
 	std::unique_ptr<PSectorMenu> m_configMenu;
 
+	std::vector<IConfigOptionWrapper*> m_allOptions;
+
 	bool m_showConfigMenu;
 
 	int m_createTrailIntervalCounter;
