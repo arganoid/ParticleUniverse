@@ -52,12 +52,19 @@ public:
 	}
 };
 
+class IConfigOptionWrapper
+{
+public:
+	virtual void save() = 0;
+	virtual void resetToDefault() = 0;
+};
+
 template<typename T>
-class ConfigOptionWrapper
+class ConfigOptionWrapper : public IConfigOptionWrapper
 {
 public:
 	// If defaultVal not specified, only load value from config if it exists
-	ConfigOptionWrapper(const char* const& cat, const char* const& n, const char* displayName, std::optional<T> defaultVal) :
+	ConfigOptionWrapper(const char* const& cat, const char* const& n, const char* displayName, std::optional<T> defaultVal, bool autoSave = true) :
 		category(cat), name(n), displayName(displayName), defaultValue(defaultVal)
 	{}
 
@@ -74,7 +81,18 @@ public:
 	void set(T val)
 	{
 		value = val;
-		Config::setValue<T>(category, name, val);
+		if (autoSave)
+			save();
+	}
+
+	virtual void save()
+	{
+		Config::setValue<T>(category, name, get());
+	}
+	
+	virtual void resetToDefault()
+	{
+		value = defaultValue.value();
 	}
 
 	const char* getDisplayName() const { return displayName; }
@@ -92,10 +110,11 @@ public:
 
 private:
 	std::optional<T> value;
-	std::optional<T> defaultValue;
+	std::optional<T> defaultValue;	// don't remember why defaultValue is optional
 	const char* category;
 	const char* name;
 	const char* displayName;
+	bool autoSave;
 
 	void load()
 	{
