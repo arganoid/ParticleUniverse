@@ -149,21 +149,6 @@ std::shared_ptr<CmdButtonAction> PSectorMenu::addAction(int x, DialogTextSource 
 	return button;
 }
 
-void PSectorMenu::add(int x, ConfigOptionWrapper<int>& option, int min, int max, int step)
-{
-	DialogTextFunc nameText = [&] { return option.getDisplayName(); };
-	DialogTextFunc valueText = [&]
-	{
-		ostringstream ss;
-		ss << option.get();
-		return ss.str();
-	};
-	auto leftAction = [&, min, max, step] { option = option.get() - step; if (option < min) option = min; };
-	auto rightAction = [&, min, max, step] { option = option.get() + step; if (option > max) option = max; };
-	cmdMenu.add(make_shared<CmdButtonDynamic>(x, nextY, 344, nextY + buttonHeight, nameText, valueText, [] {}, leftAction, rightAction));
-	nextY += yInc;
-}
-
 void PSectorMenu::addHeading(int x, string const& text)
 {
 	cmdMenu.addHeading(x, nextY, 344, nextY + buttonHeight, text);

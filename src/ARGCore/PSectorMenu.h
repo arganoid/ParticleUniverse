@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <sstream>
 #include <unordered_set>
 
 #include "dialog.h"
@@ -81,7 +82,22 @@ public:
 	std::shared_ptr<CmdButtonAction> addAction(int x, DialogTextSource txt, std::function<void()> action, std::function<void(CmdButtonAction&)> deleteAction = nullptr, RGB* col = nullptr);
 	std::shared_ptr<CmdButtonAction> addAction(int x, DialogTextSource txt, std::function<void(CmdButtonAction&)> action, std::function<void(CmdButtonAction&)> deleteAction = nullptr, RGB* col = nullptr);
 	
-	void add(int x, ConfigOptionWrapper<int>& option, int min, int max, int step = 1);
+	template<typename T>
+	void add(int x, ConfigOptionWrapper<T>& option, T min, T max, T step = 1)
+	{
+		DialogTextFunc nameText = [&] { return option.getDisplayName(); };
+		DialogTextFunc valueText = [&]
+			{
+				std::ostringstream ss;
+				ss << option.get();
+				return ss.str();
+			};
+		auto leftAction = [&, min, max, step] { option = option.get() - step; if (option < min) option = min; };
+		auto rightAction = [&, min, max, step] { option = option.get() + step; if (option > max) option = max; };
+		cmdMenu.add(make_shared<CmdButtonDynamic>(x, nextY, 344, nextY + buttonHeight, nameText, valueText, [] {}, leftAction, rightAction));
+		nextY += yInc;
+	}
+
 
 	void addHeading(int x, string const& text);
 	void addGap();
