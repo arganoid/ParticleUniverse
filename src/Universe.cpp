@@ -82,18 +82,15 @@ const RecordingMode recordingMode = RecordingMode::None;
 // output/input filenames below are ones I used for recording of recent video,
 // obviously change this if you plan to use this yourself
 
-const string recordingOutputFileName = "F://ParticleUniverseRecording 15k part7.txt";
+const string recordingOutputFileName = "F://ParticleUniverseRecording1.bin";
 
 vector<string> recordingInputFileNames =
-	{ "F://ParticleUniverseRecording 15k part1.txt",
-	  "F://ParticleUniverseRecording 15k part2.txt",
-	  "F://ParticleUniverseRecording 15k part3.txt",
-	  "F://ParticleUniverseRecording 15k part4.txt",
-	  "F://ParticleUniverseRecording 15k part5.txt",
-	  "F://ParticleUniverseRecording 15k part6.txt",
+	{
+		"F://ParticleUniverseRecording1.bin",
+		"F://ParticleUniverseRecording2.bin",
 	};
 
-vector<string>::const_iterator currentRecordingInputFileName = cbegin(recordingInputFileNames);
+int currentRecordingFileI = 0;
 
 const float rightClickDeleteMaxPixelDistance = 60.f;
 
@@ -190,7 +187,7 @@ Universe::Universe():
 		}
 		case RecordingMode::Save:
 		{
-			outputFile.open(recordingOutputFileName);
+			outputFile.open(recordingOutputFileName, ios::binary);
 			break;
 		}
 	}
@@ -237,38 +234,43 @@ void Universe::Advance(float _deltaTime)
 	{
 		if (!inputFile.is_open())
 		{
-			inputFile.open(*currentRecordingInputFileName);
-			argDebugf("opened %s\n", currentRecordingInputFileName->c_str());
+			auto filename = recordingInputFileNames[currentRecordingFileI];
+			inputFile.open(filename, ios::binary);
+			argDebugf("opened %s\n", filename.c_str());
 		}
 		else if (inputFile.eof())
 		{
 			// open next file in sequence
-			inputFile.close();
-			++currentRecordingInputFileName;
-			try
+			if (currentRecordingFileI < recordingInputFileNames.size() - 1)
 			{
-				inputFile.open(*currentRecordingInputFileName);
-				argDebugf("opened %s\n", currentRecordingInputFileName->c_str());
-			}
-			catch (...)
-			{
+				++currentRecordingFileI;
+				inputFile.close();
+				auto filename = recordingInputFileNames[currentRecordingFileI];
+				inputFile.open(filename, ios::binary);
+				argDebugf("opened %s\n", filename.c_str());
 			}
 		}
 
-		int pCount;
-		try
+		if (inputFile.good())
 		{
-			inputFile >> pCount;
-			m_particles.resize(pCount);
-			for (int i = 0; i < pCount; ++i)
+			size_t pCount;
+			read(inputFile, pCount);
+			if (inputFile.good())
 			{
-				inputFile >> m_particles[i];
+				m_particles.resize(pCount);
+				for (size_t i = 0; i < pCount; ++i)
+				{
+					// todo could save pos as floats rather than doubles
+					read(inputFile, m_particles[i].m_mass);
+					read(inputFile, m_particles[i].m_pos.x);
+					read(inputFile, m_particles[i].m_pos.y);
+					read(inputFile, m_particles[i].m_vel.x);
+					read(inputFile, m_particles[i].m_vel.y);
+					read(inputFile, m_particles[i].m_col.r);
+					read(inputFile, m_particles[i].m_col.g);
+					read(inputFile, m_particles[i].m_col.b);
+				}
 			}
-		}
-		catch (...)
-		{
-			// eof won't trigger above until we try to read the next item. There's definitely
-			// a better way to deal with this but I don't have time to prioritise that
 		}
 	}
 	else if (!m_freeze)
@@ -386,12 +388,18 @@ void Universe::Advance(float _deltaTime)
 
 	if (recordingMode == RecordingMode::Save)
 	{
-		outputFile << m_particles.size() << " ";
+		write(outputFile, m_particles.size());
 		for (auto const& p : m_particles)
 		{
-			outputFile << p << " ";
+			write(outputFile, p.m_mass);
+			write(outputFile, p.m_pos.x);
+			write(outputFile, p.m_pos.y);
+			write(outputFile, p.m_vel.x);
+			write(outputFile, p.m_vel.y);
+			write(outputFile, p.m_col.r);
+			write(outputFile, p.m_col.g);
+			write(outputFile, p.m_col.b);
 		}
-		outputFile << endl;
 	}
 }
 
