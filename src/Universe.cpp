@@ -60,7 +60,7 @@ const double DEFAULT_G = 6.672 * 0.00001;	// some preset universes such as spira
 const int drawTrailInterval = 1; // 4;
 
 const int spiralNumParticlesDefault = 1500;
-const float spiralMassDecrease = 0.99f;		// used 0.99 in latest video, old version used 0.95
+const float spiralMassDecrease = 0.999f;		// used 0.99 in latest video, old version used 0.95
 
 const float particleEdgeThickness = 1.5f;
 
@@ -176,7 +176,7 @@ Universe::Universe():
 
 	m_configMenu = CreateConfigMenu();
 
-	CreateUniverse(4);
+	CreateUniverse(8);
 
 	switch (recordingMode)
 	{
@@ -1172,9 +1172,9 @@ void Universe::CreateUniverse(int _id)
 			if (_id == 5)
 				MakeSpiralUniverse(1e12f, m_numSpiralParticles, 10.f, 20.5f, 0.4f, spiralMassDecrease, 5.f);
 			else if (_id == 6)
-				MakeSpiralUniverse(1e9f, m_numSpiralParticles, 5.f, 8.f, 0.25f, 0.999f, 0.6f);
+				MakeSpiralUniverse(1e9f, m_numSpiralParticles, 5.f, 8.f, 0.25f, spiralMassDecrease, 0.6f);
 			else if (_id == 7)
-				MakeSpiralUniverse(1e9f, m_numSpiralParticles, 5.f, 14.f, 1.25f, 0.999f, 1.5f);
+				MakeSpiralUniverse(1e9f, m_numSpiralParticles, 5.f, 14.f, 1.25f, spiralMassDecrease, 1.5f);
 			
 			break;
 		}
@@ -1183,7 +1183,7 @@ void Universe::CreateUniverse(int _id)
 			// spiral with normal gravity
 			m_viewportWidth = m_defaultViewportWidth * 10.f;
 
-			MakeSpiralUniverse(1e6f, 4000, 8.f, 13.f, 1.5f, 0.9999f, 2.5f);
+			MakeSpiralUniverse(1e6f, m_numSpiralParticles, 8.f, 13.f, 1.5f, spiralMassDecrease, 1.5f);
 
 			break;
 		}
@@ -1334,10 +1334,10 @@ void Universe::RenderMenu()
 						//"3: Circle",
 						"3: Grid",
 						"4: Solar system",
-						"5: Spiral 1",
-						"6: Spiral 2",
-						"7: Spiral 3",
-						"8: Spiral 4",
+						"5: Spiral 1 (low gravity, high mass)",
+						"6: Spiral 2 (low gravity, high mass)",
+						"7: Spiral 3 (low gravity, high mass)",
+						"8: Spiral 4 (normal gravity)",
 						"9: Two suns"};
 			break;
 		}
