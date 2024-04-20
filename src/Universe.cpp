@@ -90,7 +90,7 @@ vector<string> recordingInputFileNames =
 		"F://ParticleUniverseRecording2.bin",
 	};
 
-int currentRecordingFileI = 0;
+size_t currentRecordingFileI = 0;
 
 const float rightClickDeleteMaxPixelDistance = 60.f;
 
@@ -552,7 +552,7 @@ void Universe::AdvanceGravityGridBasedMode()
 
 	mutex mergeMutex;
 
-	const int count = m_particles.size();
+	const size_t count = m_particles.size();
 	const int gridRowsCols = m_gridRowsCols;
 
 	// Get grid extents
