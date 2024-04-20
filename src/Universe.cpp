@@ -422,7 +422,7 @@ void Universe::AdvanceGravityNormalMode()
 	vector<unordered_set<int>> mergeSets;
 	mutex mergeMutex;
 
-	int count = m_particles.size();
+	size_t count = m_particles.size();
 
 	vector<mutex> mutexes(count);
 
@@ -576,7 +576,7 @@ void Universe::AdvanceGravityGridBasedMode()
 	struct GridSquare
 	{
 		vector<Particle*> particles;
-		vector<int> particleIndices;
+		vector<size_t> particleIndices;
 		VectorType centre;
 		float mass = 0;
 		size_t index = 0;
@@ -790,7 +790,7 @@ void Universe::AdvanceGravityGridBasedMode()
 			for (size_t i = 0; i < gridSquare.particles.size(); ++i)
 			{
 				Particle& me = *(gridSquare.particles[i]);
-				const int index1 = gridSquare.particleIndices[i];
+				const auto index1 = gridSquare.particleIndices[i];
 				const float meMass = me.m_mass;
 				const float size = sizes[index1];
 
@@ -802,7 +802,7 @@ void Universe::AdvanceGravityGridBasedMode()
 				for (size_t p = i + 1; p < gridSquareCount; p++)
 				{
 					Particle& other = *(gridSquare.particles[p]);
-					const int index2 = gridSquare.particleIndices[p];
+					const auto index2 = gridSquare.particleIndices[p];
 
 					// Get vector between objects
 					VectorType objectsVector = other.GetPos() - me.GetPos();
@@ -888,7 +888,7 @@ void Universe::AdvanceGravityGridBasedMode()
 						for (size_t p = 0; p < otherGridSquare.particles.size(); p++)
 						{
 							Particle& other = *(otherGridSquare.particles[p]);
-							const int index2 = otherGridSquare.particleIndices[p];
+							const auto index2 = otherGridSquare.particleIndices[p];
 
 							if (&me == &other)	// shouldn't be necessary, we won't be checking current grid square here
 								continue;
@@ -992,7 +992,7 @@ void Universe::AdvanceGravityGridBasedMode()
 
 	// Priority queue because we are deleting based on index
 	// We want to delete high indicies first so as not to invalidate lower indicies
-	priority_queue<int> deleteQueue;
+	priority_queue<size_t> deleteQueue;
 
 	for (auto& set : mergeSets)
 	{

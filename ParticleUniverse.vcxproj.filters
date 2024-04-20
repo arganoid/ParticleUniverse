@@ -64,9 +64,6 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="src\ParticleUniverseGame.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -109,5 +106,8 @@
     <ClInclude Include="src\ARGCore\Fonts.h">
       <Filter>Header Files\ARGCore</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
   </ItemGroup>
 </Project>

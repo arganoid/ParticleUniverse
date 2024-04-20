@@ -4,6 +4,7 @@
 /old
 /packages
 /Build
+/x64
 *.exe
 *.log
 *.vcxproj.user
