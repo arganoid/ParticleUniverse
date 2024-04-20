@@ -450,9 +450,11 @@ void Universe::AdvanceGravityNormalMode()
 
 			// Get vector between objects
 			VectorType objectsVector = other.GetPos() - me.GetPos();
-			float distance = objectsVector.Mag();
 
-			if (distance < size + sizes[p])
+			float distanceSq = objectsVector.MagSq();
+
+			float combinedRadius = size + sizes[p];
+			if (distanceSq < combinedRadius * combinedRadius)
 			{
 				scoped_lock mergeLock(mergeMutex);
 
@@ -478,7 +480,7 @@ void Universe::AdvanceGravityNormalMode()
 			}
 
 			// Calculate gravitational attraction
-			float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
+			float force = (m_gravitationalConstant * meMass * other.m_mass) / distanceSq;
 
 			// Apply force to velocity of particle (accel = force / mass)
 			objectsVector.Normalise();
@@ -804,10 +806,15 @@ void Universe::AdvanceGravityGridBasedMode()
 
 					// Get vector between objects
 					VectorType objectsVector = other.GetPos() - me.GetPos();
-					float distance = objectsVector.Mag();
+					
+					float distanceSq = objectsVector.MagSq();
+					
 					objectsVector.Normalise();
+					
+					float combinedRadius = size + sizes[index2];
 
-					if (distance < size + sizes[index2])
+					// Check for collision
+					if (distanceSq < combinedRadius * combinedRadius)
 					{
 						scoped_lock mergeLock(mergeMutex);
 
@@ -838,7 +845,7 @@ void Universe::AdvanceGravityGridBasedMode()
 					}
 
 					// Calculate gravitational attraction
-					float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
+					float force = (m_gravitationalConstant * meMass * other.m_mass) / distanceSq;
 
 					// Apply force to velocity of particle (accel = force / mass)
 
@@ -887,12 +894,13 @@ void Universe::AdvanceGravityGridBasedMode()
 								continue;
 
 							// Get vector between objects
-							VectorType objectsVector = other.GetPos() - me.GetPos();
-							float distance = objectsVector.Mag();
+							VectorType objectsVector = other.m_pos - me.m_pos;
 
-#if 1
+							float distanceSq = objectsVector.MagSq();
+							float combinedRadius = size + sizes[index2];
+
 							// Check for collision
-							if (distance < size + sizes[index2])
+							if (distanceSq < combinedRadius * combinedRadius)
 							{
 								scoped_lock mergeLock(mergeMutex);
 
@@ -922,10 +930,9 @@ void Universe::AdvanceGravityGridBasedMode()
 								// Don't do gravitational force with another particle if we're going to merge with it
 								continue;
 							}
-#endif
 
 							// Calculate gravitational attraction
-							float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
+							float force = (m_gravitationalConstant * meMass * other.m_mass) / distanceSq;
 
 							// Apply force to velocity of particle (accel = force / mass)
 							objectsVector.Normalise();
@@ -949,11 +956,13 @@ void Universe::AdvanceGravityGridBasedMode()
 					{
 						// Gravitational attraction from this particle to a whole grid square
 						VectorType vec = grid[otherGY][otherGX].centre - me.GetPos();
-						float distance = vec.Mag();
+						
+						float distanceSq = vec.MagSq();
+						
 						vec.Normalise();
 
 						// Calculate gravitational attraction
-						float force = (m_gravitationalConstant * meMass * grid[otherGY][otherGX].mass) / (distance * distance);
+						float force = (m_gravitationalConstant * meMass * grid[otherGY][otherGX].mass) / distanceSq;
 
 						float accelMe = force / meMass;
 						vec.SetLength(accelMe);
