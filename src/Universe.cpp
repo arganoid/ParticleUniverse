@@ -56,7 +56,7 @@ const int defaultGridRowsCols = 20;
 
 // High = faster but less accurate, if it's equal or close to gridRowsCols there's no benefit in the grid based 
 // approach (in fact it will be worse than normal mode)
-const int defaultHighAccuracyGridDistance = 6;
+const int defaultHighAccuracyGridDistance = 2;
 
 const int defaultTrailInterval = 4;
 const double DEFAULT_G = 6.672 * 0.00001;	// some preset universes such as spiral use different G values
