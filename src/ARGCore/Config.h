@@ -65,7 +65,7 @@ class ConfigOptionWrapper : public IConfigOptionWrapper
 public:
 	// If defaultVal not specified, only load value from config if it exists
 	ConfigOptionWrapper(const char* const& cat, const char* const& n, const char* displayName, std::optional<T> defaultVal, bool autoSave = true) :
-		category(cat), name(n), displayName(displayName), defaultValue(defaultVal)
+		category(cat), name(n), displayName(displayName), defaultValue(defaultVal), autoSave(true)
 	{}
 
 	bool hasValue() const { return Config::doesValueExist(category, name); }
