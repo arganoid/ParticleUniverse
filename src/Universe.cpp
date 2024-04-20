@@ -1,7 +1,5 @@
 // todo
-// option to write as binary
 // combine recording file and save file?
-// options for particle size
 // options for particle colours
 
 #include "Universe.h"
@@ -38,6 +36,12 @@ using namespace std;
 
 auto versionText = "v1.5";
 
+// Comment out to go back to old version of grid based gravity update
+// New system is slightly faster than old system in some cases with large numbers of particles,
+// slower in others. Recommend 35 rows/cols with the new system when using a very large number of
+// particles (e.g. 10k or more)
+#define GRID_BASED_MODE_NEW
+
 // Default async policy is that std::async will decide whether each particle update is run on a new thread or the main thread
 #define ASYNC_POLICY_DEFAULT 1
 
@@ -47,7 +51,7 @@ auto versionText = "v1.5";
 auto asyncPolicy = std::launch::deferred;
 #endif
 
-// todo need to be able to adjust while running to find best balance, too many squares makes it run slower
+// 35 may work better for the latest version of the grid-based system
 const int defaultGridRowsCols = 20;
 
 // High = faster but less accurate, if it's equal or close to gridRowsCols there's no benefit in the grid based 
@@ -150,7 +154,8 @@ Universe::Universe():
 	m_createTrailIntervalCounter(0),
 	m_freeze(false),
 	m_userGeneratedParticleMass(1e5f),
-	m_showConfigMenu(false)
+	m_showConfigMenu(false),
+	m_useGridBasedMode(false)
 {
 	m_allOptions = {
 		&m_gridRowsCols,
@@ -562,43 +567,50 @@ void Universe::AdvanceGravityGridBasedMode()
 	auto particleGridPos = [&](Particle const& p)
 	{
 		// Count a particle off the bottom/right as being in the bottom/right square
-		return pair<int, int>{ min(static_cast<int>( (p.m_pos.x - minX) / stepX), gridRowsCols -1),
-							   min(static_cast<int>( (p.m_pos.y - minY) / stepY), gridRowsCols -1) };
+		return pair<int, int>{ min(static_cast<int>((p.m_pos.x - minX) / stepX), gridRowsCols - 1),
+							   min(static_cast<int>((p.m_pos.y - minY) / stepY), gridRowsCols - 1) };
 	};
 
 	struct GridSquare
 	{
 		vector<Particle*> particles;
+		vector<int> particleIndices;
 		VectorType centre;
 		float mass = 0;
+		size_t index = 0;
 	};
 
 	vector<vector<GridSquare>> grid;
-	for (int i = 0; i < gridRowsCols; ++i)
+	for (int rowI = 0; rowI < gridRowsCols; ++rowI)
 	{
 		vector<GridSquare> row(gridRowsCols);
+		for (int colI = 0; colI < gridRowsCols; ++colI)
+			row[colI].index = rowI * gridRowsCols + colI;
 		grid.push_back(row);
 	}
 
 	// Track which grid squares which contain particles so we don't waste time checking particles against 
 	// empty squares
-	unordered_set<GridSquare*> nonEmptyGridSquares;
+	unordered_set<GridSquare*> nonEmptyGridSquaresSet;
+	vector<GridSquare*> nonEmptyGridSquares;
 
 	// Assign each particle to a grid rectangle
-	for (auto& p : m_particles)
+	for (size_t i = 0; i < m_particles.size(); ++i)
 	{
+		auto& p = m_particles[i];
 		auto [gx, gy] = particleGridPos(p);
 		if (gx < 0 || gy < 0 || (size_t)gx >= grid[0].size() || (size_t)gy >= grid.size())
 			continue;	// shouldn't ever happen
 		grid[gy][gx].particles.push_back(&p);
+		grid[gy][gx].particleIndices.push_back(i);
 		grid[gy][gx].mass += p.GetMass();
-		grid[gy][gx].centre = { minX + gx * stepX, minY + gy * stepY };
-		nonEmptyGridSquares.insert(&grid[gy][gx]);
+		grid[gy][gx].centre = { minX + gx * stepX + (stepX / 2.), minY + gy * stepY + (stepY / 2.) };
+		grid[gy][gx].index = gy * gridRowsCols + gx;
+		nonEmptyGridSquaresSet.insert(&grid[gy][gx]);
 	}
 
-	// Each particle had its own mutex because another particle might change its velocity, but we're not
-	// doing two-way interactions in the current system
-	//vector<mutex> mutexes(count);
+	for (GridSquare* p : nonEmptyGridSquaresSet)
+		nonEmptyGridSquares.push_back(p);
 
 	const float sizeLogBase = m_sizeLogBase;
 
@@ -608,135 +620,145 @@ void Universe::AdvanceGravityGridBasedMode()
 	// with caching sizes, update = 95ms
 	// Unlike normal mode, we have to use a map (much slower than the vector) for some particles because we
 	// don't always know the particle index
+	// No longer need to use sizesMap since grid squares track particle indices
 	vector<float> sizes(count);
-	unordered_map<Particle*,float> sizesMap;
+	//unordered_map<Particle*, float> sizesMap;
 	for (size_t i = 0; i < m_particles.size(); ++i)
 	{
-		sizesMap[&m_particles[i]] = sizes[i] = m_particles[i].GetSize(sizeLogBase);
+		//sizesMap[&m_particles[i]] =
+		sizes[i] = m_particles[i].GetSize(sizeLogBase);
 	}
 
+#ifndef GRID_BASED_MODE_NEW
+	// Old grid based mode
+
+	// Each particle had its own mutex because another particle might change its velocity, but we're not
+	// doing two-way interactions in the current system
+	//vector<mutex> mutexes(count);
+
 	auto execute = [&](int i)
-	{
-		Particle& me = m_particles[i];
-		float const meMass = me.m_mass;
-		float size = sizes[i];
-
-		//scoped_lock lock1(mutexes[i]);
-
-		// go through each grid square
-		// if it's our own grid square or within certain distance, go through particles as normal, otherwise
-		// be attracted based on total mass of other grid square
-		auto [myGX, myGY] = particleGridPos(me);
-		
-		// In the original simulation the interaction between any pair of particles is calculated only once, we
-		// avoid doing the interaction twice by doing nested for loops
-		// for outer = 0 to size-1
-		//   for inner = outer+1 to size-1
-		// Here we have three scenarios which need to be considered
-		// 1. Interaction with particles in same square. We could make a thread for each non-empty grid square and
-		//    run the simulation in the same way that we used to.
-		// 2. Interaction with particles in neighbouring squares. Could handle double interactions by skipping square
-		//    interactions with lower indexed squares
-		// 3. Interaction with distant grid cells. Could be combined with 1.
-		
-		// The above would probably be much faster than the way I'm doing it at the moment
-
-		for (auto& otherGridSquareP : nonEmptyGridSquares)
 		{
-			auto otherGridSquare = *otherGridSquareP;
+			Particle& me = m_particles[i];
+			float const meMass = me.m_mass;
+			float size = sizes[i];
 
-			// get grid coordinates from the first particle
-			auto [otherGX, otherGY] = particleGridPos(*otherGridSquare.particles.front());
+			//scoped_lock lock1(mutexes[i]);
 
-			// If other grid square is within this many grid squares, go through particles individually
-			int gridDistance = abs(myGX - otherGX) + abs(myGY - otherGY);
-			if (gridDistance <= defaultHighAccuracyGridDistance)
+			// go through each grid square
+			// if it's our own grid square or within certain distance, go through particles as normal, otherwise
+			// be attracted based on total mass of other grid square
+			auto [myGX, myGY] = particleGridPos(me);
+
+			// In the original simulation the interaction between any pair of particles is calculated only once, we
+			// avoid doing the interaction twice by doing nested for loops
+			// for outer = 0 to size-1
+			//   for inner = outer+1 to size-1
+			// Here we have three scenarios which need to be considered
+			// 1. Interaction with particles in same square. We could make a thread for each non-empty grid square and
+			//    run the simulation in the same way that we used to.
+			// 2. Interaction with particles in neighbouring squares. Could handle double interactions by skipping square
+			//    interactions with lower indexed squares
+			// 3. Interaction with distant grid cells. Could be combined with 1.
+
+			// The above would probably be much faster than the way I'm doing it at the moment
+
+			for (auto& otherGridSquareP : nonEmptyGridSquaresSet)
 			{
-				for (size_t p = 0; p < otherGridSquare.particles.size(); p++)
+				auto otherGridSquare = *otherGridSquareP;
+
+				// get grid coordinates from the first particle
+				auto [otherGX, otherGY] = particleGridPos(*otherGridSquare.particles.front());
+
+				// If other grid square is within this many grid squares, go through particles individually
+				int gridDistance = abs(myGX - otherGX) + abs(myGY - otherGY);
+				if (gridDistance <= m_highAccuracyGridDistance)
 				{
-					Particle& other = *(otherGridSquare.particles[p]);
+					for (size_t p = 0; p < otherGridSquare.particles.size(); p++)
+					{
+						Particle& other = *(otherGridSquare.particles[p]);
+						const int index2 = otherGridSquare.particleIndices[p];
 
-					if (&me == &other)
-						continue;
+						if (&me == &other)
+							continue;
 
-					// Get vector between objects
-					VectorType objectsVector = other.GetPos() - me.GetPos();
-					float distance = objectsVector.Mag();
+						// Get vector between objects
+						VectorType objectsVector = other.GetPos() - me.GetPos();
+						float distance = objectsVector.Mag();
 
 #if 1
-					if (distance < size + sizesMap[&other])
-					{
-						scoped_lock mergeLock(mergeMutex);
-						
-						//argDebugf("Merge %d,%d", i, p);
-
-						// Find if there's an existing merge set which contains at least one of the two particles,
-						// if so merge particles into that existing merge set
-						bool mergedIntoExistingSet = false;
-						for (auto& set : mergeSets)
+						if (distance < size + sizes[index2])
 						{
-							bool foundI = set.find(&m_particles[i]) != set.end();
-							bool foundP = set.find(&other) != set.end();
-							if (foundI || foundP)
+							scoped_lock mergeLock(mergeMutex);
+
+							//argDebugf("Merge %d,%d", i, p);
+
+							// Find if there's an existing merge set which contains at least one of the two particles,
+							// if so merge particles into that existing merge set
+							bool mergedIntoExistingSet = false;
+							for (auto& set : mergeSets)
 							{
-								//argDebugf("Found in existing set: i:%d p:%d", foundI, foundP);
-								set.insert(&m_particles[i]);
-								set.insert(&other);
-								mergedIntoExistingSet = true;
-								break;
+								bool foundI = set.find(&m_particles[i]) != set.end();
+								bool foundP = set.find(&other) != set.end();
+								if (foundI || foundP)
+								{
+									//argDebugf("Found in existing set: i:%d p:%d", foundI, foundP);
+									set.insert(&m_particles[i]);
+									set.insert(&other);
+									mergedIntoExistingSet = true;
+									break;
+								}
 							}
+
+							// Otherwise create a new merge set
+							if (!mergedIntoExistingSet)
+								mergeSets.push_back({ &m_particles[i], &other });
+
+							// Don't do gravitational force with another particle if we're going to merge with it
+							continue;
 						}
-
-						// Otherwise create a new merge set
-						if (!mergedIntoExistingSet)
-							mergeSets.push_back({ &m_particles[i], &other });
-
-						// Don't do gravitational force with another particle if we're going to merge with it
-						continue;
-					}
 #endif
 
+						// Calculate gravitational attraction
+						float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
+
+						// Apply force to velocity of particle (accel = force / mass)
+						objectsVector.Normalise();
+
+						VectorType objectsVectorOther = objectsVector;
+
+						float accelMe = force / meMass;
+						float accelOther = force / other.m_mass;
+
+						// This lock was to allow for two-way particle interations without having to do the calculations
+						// twice. We can't do that here because we don't know the other particle's index in m_particles
+						// any more
+						//scoped_lock lock2(mutexes[p]);
+
+						objectsVector.SetLength(accelMe);
+						//objectsVectorOther.SetLength(accelOther);
+
+						me.AddToVel(objectsVector);
+						//other.AddToVel(-objectsVectorOther);
+					}
+				}
+				else
+				{
+					// Gravitational attraction from this particle to a whole grid square
+					VectorType vec = grid[otherGY][otherGX].centre - me.GetPos();
+					float distance = vec.Mag();
+
 					// Calculate gravitational attraction
-					float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
+					float force = (m_gravitationalConstant * meMass * grid[otherGY][otherGX].mass) / (distance * distance);
 
 					// Apply force to velocity of particle (accel = force / mass)
-					objectsVector.Normalise();
-
-					VectorType objectsVectorOther = objectsVector;
+					vec.Normalise();
 
 					float accelMe = force / meMass;
-					float accelOther = force / other.m_mass;
-
-					// This lock was to allow for two-way particle interations without having to do the calculations
-					// twice. We can't do that here because we don't know the other particle's index in m_particles
-					// any more
-					//scoped_lock lock2(mutexes[p]);
-
-					objectsVector.SetLength(accelMe);
-					//objectsVectorOther.SetLength(accelOther);
-
-					me.AddToVel(objectsVector);
-					//other.AddToVel(-objectsVectorOther);
+					vec.SetLength(accelMe);
+					me.AddToVel(vec);
 				}
 			}
-			else
-			{
-				// Gravitational attraction from this particle to a whole grid square
-				VectorType vec = grid[otherGY][otherGX].centre - me.GetPos();
-				float distance = vec.Mag();
-
-				// Calculate gravitational attraction
-				float force = (m_gravitationalConstant * meMass * grid[otherGY][otherGX].mass) / (distance * distance);
-
-				// Apply force to velocity of particle (accel = force / mass)
-				vec.Normalise();
-
-				float accelMe = force / meMass;
-				vec.SetLength(accelMe);
-				me.AddToVel(vec);
-			}
-		}
-	};
+		};
 
 	vector<future<void>> futures;
 
@@ -745,6 +767,214 @@ void Universe::AdvanceGravityGridBasedMode()
 		futures.push_back(std::async(execute, i));
 #else
 		futures.push_back(std::async(asyncPolicy, execute, i));
+#endif
+#else
+	// New approach
+	// Run a thread for each grid square
+	// Each grid square runs the traditional simulation for particles in itself, including two-way interactions
+	// It also runs two way interactions with nearby grid squares with a higher index
+	// And for each particle we apply force for distant grid squares
+	vector<future<void>> futures;
+
+	vector<mutex> mutexes(count);
+
+	auto executeGridSquare = [&](int row, int col)
+		{
+			const int gridIdx = row * m_gridRowsCols + col;
+			auto& gridSquare = grid[row][col];
+			const auto gridSquareCount = gridSquare.particles.size();
+
+			// Go through particles in own square
+			for (size_t i = 0; i < gridSquare.particles.size(); ++i)
+			{
+				Particle& me = *(gridSquare.particles[i]);
+				const int index1 = gridSquare.particleIndices[i];
+				const float meMass = me.m_mass;
+				const float size = sizes[index1];
+
+				VectorType accumulatedVelChange;
+
+				scoped_lock lock1(mutexes[index1]);
+
+				// Go through particles in same square
+				for (size_t p = i + 1; p < gridSquareCount; p++)
+				{
+					Particle& other = *(gridSquare.particles[p]);
+					const int index2 = gridSquare.particleIndices[p];
+
+					// Get vector between objects
+					VectorType objectsVector = other.GetPos() - me.GetPos();
+					float distance = objectsVector.Mag();
+					objectsVector.Normalise();
+
+					if (distance < size + sizes[index2])
+					{
+						scoped_lock mergeLock(mergeMutex);
+
+						// Find if there's an existing merge set which contains at least one of the two particles,
+						// if so merge particles into that existing merge set
+						// TODO now that we have particleIndices we can go back to using ints here
+						bool mergedIntoExistingSet = false;
+						for (auto& set : mergeSets)
+						{
+							bool foundI = set.find(&m_particles[index1]) != set.end();
+							bool foundP = set.find(&other) != set.end();
+							if (foundI || foundP)
+							{
+								//argDebugf("Found in existing set: i:%d p:%d", foundI, foundP);
+								set.insert(&m_particles[index1]);
+								set.insert(&other);
+								mergedIntoExistingSet = true;
+								break;
+							}
+						}
+
+						// Otherwise create a new merge set
+						if (!mergedIntoExistingSet)
+							mergeSets.push_back({ &m_particles[index1], &other });
+
+						// Don't do gravitational force with another particle if we're going to merge with it
+						continue;
+					}
+
+					// Calculate gravitational attraction
+					float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
+
+					// Apply force to velocity of particle (accel = force / mass)
+
+					float accelMe = force / meMass;
+					float accelOther = force / other.m_mass;
+
+					objectsVector.SetLength(accelMe);
+
+					scoped_lock lock2(mutexes[index2]);
+
+					accumulatedVelChange += objectsVector;
+
+					VectorType objectsVectorOther = objectsVector;
+					objectsVectorOther.SetLength(accelOther);
+					other.AddToVel(-objectsVectorOther);
+				}
+
+				// Go through particles in nearby squares (only for squares with higher index) and distant squares
+				// Is there any benefit in going through nearby squares rather than just having bigger grid squares with
+				// no buffer zone? Well, yes, if two particles overlap in different squares.
+				// Also force vector will be super inaccurate for neighbouring grid squares
+				for (GridSquare* otherGridSquareP : nonEmptyGridSquares)
+				{
+					auto const& otherGridSquare = *otherGridSquareP;
+
+					if (otherGridSquare.index == gridSquare.index)
+						continue;
+
+					// get grid coordinates from the first particle
+					auto [otherGX, otherGY] = particleGridPos(*otherGridSquare.particles.front());
+
+					// If other grid square is within this many grid squares, go through particles individually
+					int gridDistance = abs(col - otherGX) + abs(row - otherGY);
+					if (gridDistance <= m_highAccuracyGridDistance)
+					{
+						// Don't do two-way interactions with other grid squares with lower index
+						if (otherGridSquare.index < gridSquare.index)
+							continue;
+
+						for (size_t p = 0; p < otherGridSquare.particles.size(); p++)
+						{
+							Particle& other = *(otherGridSquare.particles[p]);
+							const int index2 = otherGridSquare.particleIndices[p];
+
+							if (&me == &other)	// shouldn't be necessary, we won't be checking current grid square here
+								continue;
+
+							// Get vector between objects
+							VectorType objectsVector = other.GetPos() - me.GetPos();
+							float distance = objectsVector.Mag();
+
+#if 1
+							// Check for collision
+							if (distance < size + sizes[index2])
+							{
+								scoped_lock mergeLock(mergeMutex);
+
+								//argDebugf("Merge %d,%d", i, p);
+
+								// Find if there's an existing merge set which contains at least one of the two particles,
+								// if so merge particles into that existing merge set
+								bool mergedIntoExistingSet = false;
+								for (auto& set : mergeSets)
+								{
+									bool foundI = set.find(&m_particles[index1]) != set.end();
+									bool foundP = set.find(&other) != set.end();
+									if (foundI || foundP)
+									{
+										//argDebugf("Found in existing set: i:%d p:%d", foundI, foundP);
+										set.insert(&m_particles[index1]);
+										set.insert(&other);
+										mergedIntoExistingSet = true;
+										break;
+									}
+								}
+
+								// Otherwise create a new merge set
+								if (!mergedIntoExistingSet)
+									mergeSets.push_back({ &m_particles[index1], &other });
+
+								// Don't do gravitational force with another particle if we're going to merge with it
+								continue;
+							}
+#endif
+
+							// Calculate gravitational attraction
+							float force = (m_gravitationalConstant * meMass * other.m_mass) / (distance * distance);
+
+							// Apply force to velocity of particle (accel = force / mass)
+							objectsVector.Normalise();
+
+							VectorType objectsVectorOther = objectsVector;
+
+							float accelMe = force / meMass;
+							float accelOther = force / other.m_mass;
+							
+							objectsVector.SetLength(accelMe);
+							accumulatedVelChange += objectsVector;
+
+							// Apply interaction to other particle
+							scoped_lock lock2(mutexes[index2]);
+
+							objectsVectorOther.SetLength(accelOther);
+							other.AddToVel(-objectsVectorOther);
+						}
+					}
+					else
+					{
+						// Gravitational attraction from this particle to a whole grid square
+						VectorType vec = grid[otherGY][otherGX].centre - me.GetPos();
+						float distance = vec.Mag();
+						vec.Normalise();
+
+						// Calculate gravitational attraction
+						float force = (m_gravitationalConstant * meMass * grid[otherGY][otherGX].mass) / (distance * distance);
+
+						float accelMe = force / meMass;
+						vec.SetLength(accelMe);
+						accumulatedVelChange += vec;
+					}
+				}
+
+				// Add accumulated vel change to vel
+				me.AddToVel(accumulatedVelChange);
+			}
+		};
+
+	// todo just do empty ones
+	for (int rowI = 0; rowI < gridRowsCols; ++rowI)
+		for (int colI = 0; colI < gridRowsCols; ++colI)
+	#if ASYNC_POLICY_DEFAULT
+			futures.push_back(std::async(executeGridSquare, rowI, colI));
+	#else
+			futures.push_back(std::async(asyncPolicy, executeGridSquare, rowI, colI));
+	#endif
+
 #endif
 
 	// Await all
@@ -1114,42 +1344,38 @@ void Universe::CreateUniverse(int _id)
 			// Sun
 			AddParticle(VectorType(sunX, sunY), VectorType(0, 0), sunMass, al_map_rgb(255, 255, 0), false);
 
-			// todo why does enabling these make all planets except Pluto disappear?????
 #if 1
 			// Mercury
 			addPlanet(0.387f, 0.054f, al_map_rgb(192, 128, 128));
-
+#endif
+#if 1
 			// Venus
 			addPlanet(0.723f, 0.814f, al_map_rgb(0, 255, 64));
-
+#endif
+#if 1
 			// Earth
 			addPlanet(1.f, 1.f, al_map_rgb(64, 192, 255));
-
+#endif
+#if 1
 			// Mars
 			addPlanet(1.52f, 0.17f, al_map_rgb(255,64,64));
 
 			// Jupiter
-			float jRadius = 5.2f;
-			p = addPlanet(jRadius, 317.8f, al_map_rgb(255, 128, 64));
-			//p->SetVel(VectorType(0.f, 0.182));
-#endif
-#if 1
+			p = addPlanet(5.2f, 317.8f, al_map_rgb(255, 128, 64));
+
 			// Saturn
 			addPlanet(9.54f, 95.2f, al_map_rgb(192, 192, 0));
-			//p->SetVel(VectorType(0.f, 0.15));
 #endif
 #if 1
 			// Uranus
 			addPlanet(19.19f, 14.48f, al_map_rgb(64, 255, 64));
-			//p->SetVel(VectorType(0.f, 0.1));
-
+#endif
+#if 1
 			// Neptune
 			addPlanet(30.07f, 17.2f, al_map_rgb(128, 128, 255));
-			//p->SetVel(VectorType(0.f, 0.08));
 
 			// Pluto
 			addPlanet(39.48f, 0.0025f);
-			//p->SetVel(VectorType(0.f, 0.06));
 #endif
 
 #if 0

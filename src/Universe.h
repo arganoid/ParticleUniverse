@@ -112,7 +112,7 @@ private:
 	VectorType m_cameraPos;
 	//decltype(m_particles)::iterator m_cameraFollow;	// disabled as becomes invalidated when vector size changes
 
-	bool m_useGridBasedMode = false;
+	bool m_useGridBasedMode;
 
 	//bool m_debug;
 	bool m_debugParticleInfo;
