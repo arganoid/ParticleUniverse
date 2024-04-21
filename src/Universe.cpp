@@ -34,7 +34,7 @@
 
 using namespace std;
 
-auto versionText = "v1.5";
+auto versionText = "v1.6";
 
 // Comment out to go back to old version of grid based gravity update
 // New system is slightly faster than old system in some cases with large numbers of particles,
