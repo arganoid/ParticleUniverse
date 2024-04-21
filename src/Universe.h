@@ -22,22 +22,18 @@ struct Particle
 
 	ALLEGRO_COLOR m_col;
 
-	bool m_immovable;
-
 	Particle():
 		m_mass(1),
 		m_pos({ 0,0 }),
-		m_immovable(false),
 		m_col(al_map_rgb(255,255,255))
 	{
 	}
 
-	Particle(VectorType _pos, VectorType _vel, float _mass, ALLEGRO_COLOR _col, bool _immovable = false):
+	Particle(VectorType _pos, VectorType _vel, float _mass, ALLEGRO_COLOR _col):
 			m_pos(_pos),
 			m_vel(_vel),
 			m_mass(_mass),
-			m_col(_col),
-			m_immovable(_immovable)
+			m_col(_col)
 	{
 	}
 
@@ -64,7 +60,6 @@ struct Particle
 		m_vel = _param.GetVel();
 		m_mass = _param.GetMass();
 		m_col = _param.m_col;
-		m_immovable = _param.m_immovable;
 	}
 
 	void Merge(Particle const& _other)
@@ -143,7 +138,7 @@ public:
 	void OnClose();
 
 private:
-	void AddParticle(VectorType _pos, VectorType _vel, float _mass, ALLEGRO_COLOR _col, bool _immovable);
+	void AddParticle(VectorType _pos, VectorType _vel, float _mass, ALLEGRO_COLOR _col);
 	void AddTrailParticle(VectorType _pos, float _mass);
 
 	void AdvanceGravityNormalMode();
