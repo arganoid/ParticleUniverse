@@ -157,11 +157,11 @@ GameBase::GameBase(bool _requireMouse, int _advanceLimit):
 
 void GameBase::MainLoop()
 {
-	int const averageOverThisManyFrames = 120;
+	int const averageOverThisManyFrames = 30;
 
-	TimingBuffer advanceTimes(averageOverThisManyFrames);	// Store advance times for last 2 seconds
+	TimingBuffer advanceTimes(averageOverThisManyFrames);
 	TimingBuffer renderTimes(averageOverThisManyFrames);
-	TimingBuffer fullFrameTimes(averageOverThisManyFrames);	// Total time between frames, including screen_swap
+	TimingBuffer fullFrameTimes(averageOverThisManyFrames);
 
 	double elapsedTime = 0.;
 	double totalAdvanceTime = 0.;
