@@ -1096,7 +1096,11 @@ void Universe::Render()
 								stringFormat("Trail particles: %d", m_trails.size()),
 								stringFormat("Zoom: %.2f (-/+)", 100.f * m_viewportWidth / m_defaultViewportWidth),
 								stringFormat("Camera: %.1f, %.1f", m_cameraPos.x, m_cameraPos.y),
-								stringFormat("G: %e", m_gravitationalConstant) };
+								stringFormat("Gravity: %e", m_gravitationalConstant),
+								"",
+								stringFormat("Grid mode: %s (G)", m_useGridBasedMode ? "On" : "Off")
+							};
+
 	float y = 100;
 	for (auto const& str : entries)
 	{
