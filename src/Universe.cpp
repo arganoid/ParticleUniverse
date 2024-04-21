@@ -626,6 +626,7 @@ void Universe::AdvanceGravityGridBasedMode()
 
 #ifndef GRID_BASED_MODE_NEW
 	// Old grid based mode
+	// Run a thread for each particle
 
 	// Each particle had its own mutex because another particle might change its velocity, but we're not
 	// doing two-way interactions in the current system
